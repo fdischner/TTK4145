@@ -1,5 +1,5 @@
 #include "mainwindow.h"
-//#include <QApplication>
+#include "networkmanager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -11,7 +11,7 @@
 #include <QGroupBox>
 #include <QStatusBar>
 #include <QByteArray>
-#include "networkmanager.h"
+#include <QAbstractSocket>
 #include <QtDebug>
 
 MainWindow::MainWindow(QWidget *parent)
@@ -32,7 +32,7 @@ MainWindow::MainWindow(QWidget *parent)
     port_spinner = new QSpinBox();
     // FIXME: get this from some network define
     port_spinner->setMaximum(65535);
-    port_spinner->setValue(34933);
+    port_spinner->setValue(33546);
     hbox->addWidget(port_spinner);
     vbox = new QVBoxLayout();
     tcp_button = new QRadioButton("TCP");
@@ -53,8 +53,12 @@ MainWindow::MainWindow(QWidget *parent)
     hbox->addWidget(connect_button);
     connect(connect_button, SIGNAL(clicked()), this, SLOT(onConnect()));
     disconnect_button = new QPushButton("Disconnect");
+    disconnect_button->setEnabled(false);
+    connect(disconnect_button, SIGNAL(clicked()), this, SLOT(onDisconnect()));
     hbox->addWidget(disconnect_button);
     simon_says_button = new QPushButton("Simon Says");
+    connect(simon_says_button, SIGNAL(clicked()), this, SLOT(onSimonSays()));
+    simon_says_button->setEnabled(false);
     hbox->addWidget(simon_says_button);
 
     label = new QLabel("Client Message:");
@@ -77,14 +81,13 @@ MainWindow::MainWindow(QWidget *parent)
     response_edit->setReadOnly(true);
     vbox->addWidget(response_edit);
 
-    connect(tcp_button, SIGNAL(toggled(bool)), this, SLOT(onTcpChecked(bool)));
     tcp_button->setChecked(true);
+    connect(tcp_button, SIGNAL(toggled(bool)), this, SLOT(onDisconnect()));
 
     statusBar()->showMessage("Disconnected");
-    //setUnifiedTitleAndToolBarOnMac(true);
     
     network_manager = new NetworkManager(this);
-    connect(network_manager, SIGNAL(messageReady()), this, SLOT(onMessageReady()));
+    connect(network_manager, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceived(QByteArray)));
 }
 
 MainWindow::~MainWindow()
@@ -92,32 +95,75 @@ MainWindow::~MainWindow()
 
 }
 
-void MainWindow::onTcpChecked(bool checked)
+void MainWindow::onDisconnect()
 {
-    //connect_button->setEnabled(checked);
-    //send_button->setEnabled(!checked);
-    disconnect_button->setEnabled(false);
+    if (network_manager->socket == 0)
+        return;
+
+    send_button->setEnabled(false);
     simon_says_button->setEnabled(false);
 
-    statusBar()->showMessage("Disconnected");
-    // TODO: close socket
-    
+    statusBar()->showMessage("Disconnecting...");
+    network_manager->socket->disconnectFromHost();
 }
 
 void MainWindow::onConnect() {
-    network_manager->initSocket(tcp_button->isChecked() ? NetworkManager::TCP : NetworkManager::UDP, server_ip->text(), port_spinner->value());
+    statusBar()->showMessage("Connecting...");
+    connect_button->setEnabled(false);
+    disconnect_button->setEnabled(true);
+    network_manager->initSocket(tcp_button->isChecked() ? QAbstractSocket::TcpSocket : QAbstractSocket::UdpSocket, server_ip->text(), port_spinner->value());
+    connect(network_manager->socket, SIGNAL(connected()), this, SLOT(onConnected()));
+    connect(network_manager->socket, SIGNAL(disconnected()), this, SLOT(onDisconnected()));
+    // udp sockets don't emit the connected signal
+    if (udp_button->isChecked())
+        onConnected();
 }
 
-void MainWindow::onSend() {
-    network_manager->sendMessage(message_edit->toPlainText().toUtf8().append('\0'));
+void MainWindow::onSend()
+{
+    network_manager->sendMessage(message_edit->toPlainText().toUtf8());
 }
 
-void MainWindow::onMessageReady() {
-    while (true)
+void MainWindow::onMessageReceived(const QByteArray& message)
+{
+    response_edit->append(message);
+}
+
+void MainWindow::onConnected()
+{
+    disconnect_button->setEnabled(true);
+    send_button->setEnabled(true);
+    statusBar()->showMessage("Connected");
+    if (network_manager->socket->socketType() == QAbstractSocket::TcpSocket)
+        simon_says_button->setEnabled(true);
+}
+
+void MainWindow::onDisconnected()
+{
+    disconnect_button->setEnabled(false);
+    connect_button->setEnabled(true);
+    statusBar()->showMessage("Disconnected");
+}
+
+void MainWindow::onSimonSays()
+{
+    simon_says_button->setEnabled(false);
+    send_button->setEnabled(false);
+    connect(network_manager, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceivedSimon(QByteArray)));
+    network_manager->sendMessage(QByteArray("Play Simon says"));
+}
+
+void MainWindow::onMessageReceivedSimon(const QByteArray &message)
+{
+    if (message.startsWith("Simon says "))
     {
-      QByteArray data = network_manager->readMessage();
-      if (data.isEmpty())
-	return;
-      response_edit->setText(data);
+        // respond with content, skipping 'Simon says '
+        network_manager->sendMessage(message.mid(11));
+    }
+    else if (message == "Game over." || message == "Congratulations! Simon gave up.")
+    {
+        disconnect(network_manager, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceivedSimon(QByteArray)));
+        simon_says_button->setEnabled(true);
+        send_button->setEnabled(true);
     }
 }

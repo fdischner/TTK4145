@@ -19,10 +19,14 @@ public:
     ~MainWindow();
 
 private slots:
-    void onTcpChecked(bool checked);
     void onConnect();
+    void onDisconnect();
     void onSend();
-    void onMessageReady();
+    void onMessageReceived(const QByteArray& message);
+    void onConnected();
+    void onDisconnected();
+    void onSimonSays();
+    void onMessageReceivedSimon(const QByteArray& message);
 
 private:
     QRadioButton *tcp_button;

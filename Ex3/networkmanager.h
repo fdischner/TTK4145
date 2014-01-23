@@ -4,35 +4,30 @@
 #include <QObject>
 #include <QByteArray>
 #include <QString>
-
-class QAbstractSocket;
+#include <QAbstractSocket>
 
 class NetworkManager : public QObject
 {
     Q_OBJECT
     
 public:
-    enum SocketType {
-      TCP,
-      UDP
-    };
-    
     explicit NetworkManager(QObject *parent = 0);
-    void initSocket(SocketType type, const QString& address, quint16 port);
-    void sendMessage(const QByteArray& message);
-    QByteArray readMessage(void);
+    void initSocket(QAbstractSocket::SocketType type, const QString& address, quint16 port);
     
 signals:
-    void messageReady();
+    void messageReceived(const QByteArray& message);
 
 public slots:
+    void sendMessage(const QByteArray& message);
 
 private slots:
     void onReadyRead();
 
-private:
+public:
     QAbstractSocket *socket;
-    SocketType type;
+
+private:
+    QByteArray data;
     QString address;
     quint16 port;
 };
