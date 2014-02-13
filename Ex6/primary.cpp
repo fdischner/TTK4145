@@ -1,23 +1,33 @@
 #include "primary.h"
+#include "networkmanager.h"
 #include <QTimer>
 #include <QProcess>
+#include <iostream>
 
 primary::primary(char *argv0, QObject *parent) :
     QObject(parent), path (argv0), cnt_seconds(0), cnt_message(0)
 {
     //Open a socket for sending messages to backup process
-    network.initSocket(QAbstractSocket::UdpSocket, "localhost", 44445);
-    connect(network, SIGNAL(messageReceived()), this, SLOT(onMessageReceived());
+    network = new NetworkManager(this);
+    network->initSocket(QAbstractSocket::UdpSocket, "127.0.0.1", 44445);
+    connect(network, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceived(QByteArray)));
 
     //Create timer for message timeout
     message_timer = new QTimer(this);
     connect(message_timer, SIGNAL(timeout()), this, SLOT(onTakeOver()));
-    message_timer->start(150);
+    message_timer->start(1000);
 }
 
-void primary::onMessageReceived() {
-    //Restart timer
-    message_timer->start();
+void primary::onMessageReceived(const QByteArray &message) {
+    bool ok;
+    int i = message.toInt(&ok);
+
+    if (ok)
+    {
+        //Restart timer
+        message_timer->start();
+        cnt_message = i;
+    }
 }
 
 void primary::onTakeOver() {
@@ -25,6 +35,9 @@ void primary::onTakeOver() {
     //TODO
     //backup->kill();
     message_timer->stop();
+
+    // don't listen for messages anymore
+    disconnect(network, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceived(QByteArray)));
 
     //Create a backup process
     QProcess *backup = new QProcess();
@@ -43,11 +56,12 @@ void primary::onSendMessage() {
     cnt_seconds++;
 
     //Send imAlive message to backup
-    network.sendMessage(QByteArray::number(cnt_message));
+    network->sendMessage(QByteArray::number(cnt_message));
 
     //Print number
     if (cnt_seconds == 10) {
-        cout << cnt_message;
+        std::cout << cnt_message << std::endl;
+        cnt_message++;
         cnt_seconds = 0;
     }
 

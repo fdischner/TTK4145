@@ -22,7 +22,7 @@ void NetworkManager::initSocket(QAbstractSocket::SocketType type, const QString&
         socket->connectToHost(address, port);
     } else {
         QUdpSocket *udp = new QUdpSocket(this);
-        udp->bind(QHostAddress(address), port);
+        udp->bind(QHostAddress(address), port, QUdpSocket::ShareAddress|QUdpSocket::ReuseAddressHint);
         socket = udp;
     }
 
