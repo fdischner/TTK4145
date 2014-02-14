@@ -11,12 +11,13 @@ class primary : public QObject
     Q_OBJECT
 
 public:
-    explicit primary(char *argv0, QObject *parent = 0);
+    explicit primary(char *argv0, pid_t parent_pid, QObject *parent = 0);
 
 private:
     NetworkManager *network;
     QTimer *message_timer, *imAlive_timer;
     char *path;
+    pid_t parent_pid;
     int cnt_seconds, cnt_message;
 
 signals:

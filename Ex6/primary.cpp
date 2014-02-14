@@ -3,9 +3,11 @@
 #include <QTimer>
 #include <QProcess>
 #include <iostream>
+#include <unistd.h>
+#include <signal.h>
 
-primary::primary(char *argv0, QObject *parent) :
-    QObject(parent), path (argv0), cnt_seconds(0), cnt_message(0)
+primary::primary(char *argv0, pid_t parent_pid, QObject *parent) :
+    QObject(parent), path (argv0), parent_pid(parent_pid), cnt_seconds(0), cnt_message(0)
 {
     //Open a socket for sending messages to backup process
     network = new NetworkManager(this);
@@ -32,8 +34,10 @@ void primary::onMessageReceived(const QByteArray &message) {
 
 void primary::onTakeOver() {
     //Become primary process and kill previous primary
-    //TODO
-    //backup->kill();
+    if (parent_pid > 0)
+        kill(parent_pid, SIGKILL);
+
+    // stop waiting for messages from the master
     message_timer->stop();
 
     // don't listen for messages anymore
@@ -42,7 +46,11 @@ void primary::onTakeOver() {
     //Create a backup process
     QProcess *backup = new QProcess();
     QString backup_program = path;
-    backup->startDetached(backup_program);
+    // pass our pid to backup process
+    QStringList args;
+    args << QString::number(getpid());
+    // start the backup
+    backup->startDetached(backup_program, args);
 
     //Start a timer to send imAlive messages
     imAlive_timer = new QTimer(this);
