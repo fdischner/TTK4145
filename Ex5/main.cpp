@@ -1,13 +1,10 @@
 #include <QApplication>
-#include "elevator.h"
+#include "control.h"
 
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
-	Elevator elev;
+    Control control;
 
-	elev.start();
-	elev.connect(&elev, SIGNAL(finished()), &a, SLOT(quit()));
-	
     return a.exec();
 }

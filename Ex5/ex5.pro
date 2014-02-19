@@ -16,11 +16,13 @@ LIBS += -lcomedi -lm
 SOURCES += main.cpp\
     io.c \
     elev.c \
-    elevator.cpp
+    elevator.cpp \
+    control.cpp
 
 HEADERS  += channels.h \
     io.h \
     elev.h \
-    elevator.h
+    elevator.h \
+    control.h
 
 FORMS    +=
