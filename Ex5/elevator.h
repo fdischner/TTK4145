@@ -17,23 +17,23 @@ protected:
 	void run();
 
 signals:
-	void floor_sensor(int);
-	void button_sensor(elev_button_type_t, int);
-	void stop_sensor(void);
-	void obstruction_sensor(void);
+    void floorSensor(int);
+    void buttonSensor(elev_button_type_t, int);
+    void stopSensor(void);
+    void obstructionSensor(void);
 	
 public slots:
-	void set_speed(int speed);
-	void set_floor_indicator(int floor);
-	void set_button_lamp(elev_button_type_t button, int floor, int value);
-	void set_stop_lamp(int value);
-	void set_door_open_lamp(int value);
+    void setFloorIndicator(int floor);
+    void setButtonLamp(elev_button_type_t button, int floor, int value);
+    void setStopLamp(int value);
+    void setDoorOpenLamp(int value);
+    void goToFloor(int floor);
+    void stop(void);
 	
-private slots:
-	void onButtonSensor(elev_button_type_t button, int floor);
-
 public:
-	int floor;
+    int floor, wanted;
+    int direction;
+    bool moving;
 };
 
 #endif

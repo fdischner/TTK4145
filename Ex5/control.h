@@ -2,8 +2,7 @@
 #define CONTROL_H
 
 #include <QObject>
-
-class Elevator;
+#include "elevator.h"
 
 class Control : public QObject
 {
@@ -14,9 +13,12 @@ public:
 signals:
 
 public slots:
+    void onFloorSensor(int floor);
+    void onButtonSensor(elev_button_type_t type, int floor);
 
 private:
     Elevator *elevator;
+    int wanted_floor;
 };
 
 #endif // CONTROL_H
