@@ -68,7 +68,8 @@ void Elevator::set_speed(int speed)
 
 void Elevator::set_floor_indicator(int floor)
 {
-	elev_set_floor_indicator(floor);
+    if (floor >= 0 && floor < N_FLOORS)
+        elev_set_floor_indicator(floor);
 }
 
 void Elevator::set_button_lamp(elev_button_type_t button, int floor, int value)
