@@ -10,16 +10,17 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = ex5
 TEMPLATE = app
-
+QMAKE_CFLAGS += -std=c99
+LIBS += -lcomedi -lm
 
 SOURCES += main.cpp\
-        mainwindow.cpp \
     io.c \
+    elev.c \
     elevator.cpp
 
-HEADERS  += mainwindow.h \
-    channels.h \
+HEADERS  += channels.h \
     io.h \
+    elev.h \
     elevator.h
 
 FORMS    +=
