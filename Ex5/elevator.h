@@ -16,8 +16,6 @@ public:
 protected:
 	void run();
 
-private:
-	
 signals:
 	void floor_sensor(int);
 	void button_sensor(elev_button_type_t, int);
@@ -33,6 +31,9 @@ public slots:
 	
 private slots:
 	void onButtonSensor(elev_button_type_t button, int floor);
+
+public:
+	int floor;
 };
 
 #endif
