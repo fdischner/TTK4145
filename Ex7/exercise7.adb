@@ -23,15 +23,15 @@ procedure exercise7 is
          ------------------------------------------
          -- PART 3: Complete the exit protocol here
          ------------------------------------------
-		 Will_Commit := not(Aborted);
-		 
-		 if (Finished'Count = N) then
-		    Finished_Gate_Open := True;
-		 elsif (Finished'Count = 0) then
-		    Finished_Gate_Open := False;
-			 Aborted := False;
-	     end if;
-		 
+       
+       if (Finished'Count = N-1) then
+          Will_Commit := not(Aborted);
+          Finished_Gate_Open := True;
+       elsif (Finished'Count = 0) then
+          Finished_Gate_Open := False;
+          Aborted := False;
+        end if;
+       
       end Finished;
 
       procedure Signal_Abort is
@@ -55,13 +55,13 @@ procedure exercise7 is
       -------------------------------------------
       -- PART 1: Create the transaction work here
       -------------------------------------------
-	  if (Random(Gen) > Error_Rate) then
-	     delay Duration(1.0); --constant
-	     return x + 10;
-	  else
-	     delay Duration(0.5);
-	     raise Count_Failed with "Work failed";
-	  end if;
+     if (Random(Gen) > Error_Rate) then
+        delay Duration(4.0 * Random(Gen));
+        return x + 10;
+     else
+        delay Duration(0.5);
+        raise Count_Failed with "Work failed";
+     end if;
 
    end Unreliable_Slow_Add;
 
@@ -83,9 +83,15 @@ procedure exercise7 is
          ---------------------------------------
          -- PART 2: Do the transaction work here          
          ---------------------------------------
-		   Num := Unreliable_Slow_Add(Prev);
-		 
-		   Manager.Finished;
+         begin
+            Num := Unreliable_Slow_Add(Prev);
+         exception
+            when Count_Failed =>
+               Manager.Signal_Abort;
+               Put_Line ("fail");
+         end;
+       
+         Manager.Finished;
          
          if Manager.Commit = True then
             Put_Line ("  Worker" & Integer'Image(Initial) & " committing" & Integer'Image(Num));
@@ -96,18 +102,14 @@ procedure exercise7 is
             -------------------------------------------
             -- PART 2: Roll back to previous value here
             -------------------------------------------
-			   Num := Prev;
+            Num := Prev;
          end if;
 
          Prev := Num;
          delay 0.5;
 
       end loop;
-	  
-   exception
-      when Count_Failed =>
-	     Manager.Signal_Abort;
-	     Put_Line ("fail");
+     
    end Transaction_Worker;
 
    Manager : aliased Transaction_Manager (3);
