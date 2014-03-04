@@ -2,8 +2,14 @@
 #include "elevator.h"
 
 Control::Control(QObject *parent) :
-    QObject(parent), wanted_floor(-1)
+    QObject(parent)
 {
+    for (int i = 0; i < N_FLOORS; i++) {
+        call[0][i] = false;
+        call[1][i] = false;
+        call[2][i] = false;
+    }
+
     elevator = new Elevator(this);
 
     connect(elevator, SIGNAL(floorSensor(int)), this, SLOT(onFloorSensor(int)));
@@ -14,22 +20,32 @@ Control::Control(QObject *parent) :
 
 void Control::onFloorSensor(int floor)
 {
-    if (floor == wanted_floor)
+    if (call[BUTTON_COMMAND][floor] ||
+        (elevator->direction == 1 && call[BUTTON_CALL_UP][floor]) ||
+        (elevator->direction == -1 && call[BUTTON_CALL_DOWN][floor]))
     {
+        elevator->stop();
         elevator->setButtonLamp(BUTTON_COMMAND, floor, 0);
-        wanted_floor = -1;
+        call[BUTTON_COMMAND][floor] = false;
+
+        if (elevator->direction == 1)
+        {
+            elevator->setButtonLamp(BUTTON_CALL_UP, floor, 0);
+            call[BUTTON_CALL_UP][floor] = false;
+        }
+
+        if (elevator->direction == -1)
+        {
+            elevator->setButtonLamp(BUTTON_CALL_DOWN, floor, 0);
+            call[BUTTON_CALL_DOWN][floor] = false;
+        }
     }
 }
 
 void Control::onButtonSensor(elev_button_type_t type, int floor)
 {
-    if (type == BUTTON_COMMAND)
-    {
-        // TODO: make a queue of floors to visit
-        if (wanted_floor != -1)
-            elevator->setButtonLamp(BUTTON_COMMAND, wanted_floor, 0);
-        wanted_floor = floor;
-        elevator->setButtonLamp(BUTTON_COMMAND, wanted_floor, 1);
-        elevator->goToFloor(wanted_floor);
-    }
+    elevator->setButtonLamp(type, floor, 1);
+    elevator->goToFloor(floor);
+
+    call[type][floor] = true;
 }

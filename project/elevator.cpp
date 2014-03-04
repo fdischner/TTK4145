@@ -23,13 +23,15 @@ Elevator::Elevator(QObject *parent) :
 }
 
 void Elevator::run() {
-    while (1) {
-    	int tmp;
+    int prev;
 
-    	tmp = elev_get_floor_sensor_signal();
-        if (tmp != -1 && tmp != floor)
+    while (1) {
+        int cur;
+
+        cur = elev_get_floor_sensor_signal();
+        if (prev != cur)
         {
-            floor = tmp;
+            floor = cur;
             emit floorSensor(floor);
         }
 
@@ -100,9 +102,11 @@ void Elevator::goToFloor(int floor)
     }
 
     elev_set_speed(direction * 100);
+    moving = true;
 }
 
 void Elevator::stop()
 {
     elev_set_speed(0);
+    moving = false;
 }

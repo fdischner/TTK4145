@@ -18,7 +18,7 @@ public slots:
 
 private:
     Elevator *elevator;
-    int wanted_floor;
+    bool call[3][N_FLOORS];
 };
 
 #endif // CONTROL_H
