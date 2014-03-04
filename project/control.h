@@ -14,6 +14,7 @@ private:
     bool checkCallsAbove(int floor);
     bool checkCallsBelow(int floor);
     void serviceFloor(elev_button_type_t type, int floor);
+    bool shouldService(int floor);
 
 signals:
 

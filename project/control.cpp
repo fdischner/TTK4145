@@ -2,6 +2,7 @@
 #include "elevator.h"
 #include "unistd.h"
 
+
 Control::Control(QObject *parent) :
     QObject(parent)
 {
@@ -97,9 +98,17 @@ bool Control::shouldService(int floor)
 {
     int i;
 
-    // for safety
-    if (floor == 0 || floor == N_FLOORS-1)
+    if (elevator->direction == 1 && !checkCallsAbove(floor) && call[BUTTON_CALL_DOWN][floor])
+    {
+        elevator->direction = -1;
         return true;
+    }
+
+    if (elevator->direction == -1 && !checkCallsBelow(floor) && call[BUTTON_CALL_UP][floor])
+    {
+        elevator->direction = 1;
+        return true;
+    }
 
     if (call[BUTTON_COMMAND][floor])
         return true;
@@ -110,10 +119,8 @@ bool Control::shouldService(int floor)
     if (elevator->direction == -1 && call[BUTTON_CALL_DOWN][floor])
         return true;
 
-    if (elevator->direction == 1 && !checkCallsAbove(floor) && call[BUTTON_CALL_DOWN][floor])
-        return true;
-
-    if (elevator->direction == -1 && !checkCallsBelow(floor) && call[BUTTON_CALL_UP][floor])
+    // for safety
+    if (floor == 0 || floor == N_FLOORS-1)
         return true;
 
     // In case there are no more requests, stop the elevator
