@@ -3,7 +3,7 @@ use  Ada.Text_IO, Ada.Integer_Text_IO, Ada.Numerics.Float_Random;
 
 -- (Ada tabs = 3 spaces)
 
-procedure exercise7 is
+procedure exercise8 is
 
    Count_Failed   : exception;   -- Exception to be raised when counting fails
    Gen            : Generator;   -- Random number generator
@@ -11,12 +11,10 @@ procedure exercise7 is
    protected type Transaction_Manager (N : Positive) is
       entry       Finished;
 	  entry		  Wait_Until_Aborted;
-      function    Commit return Boolean;
       procedure   Signal_Abort;
    private
       Finished_Gate_Open   : Boolean := False;
       Aborted              : Boolean := False;
-      Will_Commit          : Boolean := True;
    end Transaction_Manager;
    protected body Transaction_Manager is
       entry Finished when Finished_Gate_Open or Finished'Count = N is
@@ -26,30 +24,25 @@ procedure exercise7 is
          ------------------------------------------
        
         if (Finished'Count = N-1) then
-           Will_Commit := not(Aborted);
            Finished_Gate_Open := True;
         elsif (Finished'Count = 0) then
            Finished_Gate_Open := False;
-           Aborted := False;
         end if;
        
       end Finished;
 	  
 	  entry Wait_Until_Aborted when Aborted is
 	  begin
-		return Aborted;
-	  end Wail_Until_Aborted;
+        if (Wait_Until_Aborted'Count = 0) then
+            Aborted := False;
+        end if;
+	  end Wait_Until_Aborted;
 
       procedure Signal_Abort is
       begin
          Aborted := True;
       end Signal_Abort;
 
-      function Commit return Boolean is
-      begin
-         return Will_Commit;
-      end Commit;
-      
    end Transaction_Manager;
 
 
@@ -62,7 +55,8 @@ procedure exercise7 is
       -- PART 1: Create the transaction work here
       -------------------------------------------
       if (Random(Gen) > Error_Rate) then
-         delay Duration(4.0 * Random(Gen));
+         -- wait between 1 and 4 seconds
+         delay Duration(1.0 + (3.0 * Random(Gen)));
          return x + 10;
       else
          delay Duration(0.5);
@@ -86,38 +80,27 @@ procedure exercise7 is
          Put_Line ("Worker" & Integer'Image(Initial) & " started round" & Integer'Image(Round_Num));
          Round_Num := Round_Num + 1;
 
-         ---------------------------------------
-         -- PART 2: Do the transaction work here          
-         ---------------------------------------
-         begin
-            Num := Unreliable_Slow_Add(Prev);
-         exception
-            when Count_Failed =>
-               Num := Prev + 5;
-			   Manager.Signal_Abort;
-         end;
 		 
 		 -- Asynchronous Transfer of Control
 		 select
 		    Manager.Wait_Until_Aborted;
 			Num := Num + 5;
 		 then abort
-		    
+             ---------------------------------------
+             -- PART 2: Do the transaction work here          
+             ---------------------------------------
+             begin
+                Num := Unreliable_Slow_Add(Prev);
+             exception
+                when Count_Failed =>
+                   Put_Line("failed");
+                   Manager.Signal_Abort;
+             end;
+             Manager.Finished;
 		 end select;
        
-         Manager.Finished;
          
-         if Manager.Commit = True then
-            Put_Line ("  Worker" & Integer'Image(Initial) & " committing" & Integer'Image(Num));
-         else
-            Put_Line ("  Worker" & Integer'Image(Initial) &
-                      " reverting from" & Integer'Image(Num) &
-                      " to" & Integer'Image(Prev));
-            -------------------------------------------
-            -- PART 2: Roll back to previous value here
-            -------------------------------------------
-            -- Num := Prev;
-         end if;
+         Put_Line ("  Worker" & Integer'Image(Initial) & " committing" & Integer'Image(Num));
 
          Prev := Num;
          delay 0.5;
@@ -134,7 +117,7 @@ procedure exercise7 is
 
 begin
    Reset(Gen); -- Seed the random number generator
-end exercise7;
+end exercise8;
 
 
 
