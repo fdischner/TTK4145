@@ -29,11 +29,12 @@ void Elevator::run() {
         int cur;
 
         cur = elev_get_floor_sensor_signal();
-        if (prev != cur)
+        if (prev != cur && cur != -1)
         {
             floor = cur;
             emit floorSensor(floor);
         }
+        prev = cur;
 
         // read button sensors
 		for (int i = 0; i < N_FLOORS; i++)
