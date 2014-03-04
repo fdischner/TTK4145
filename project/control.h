@@ -10,6 +10,11 @@ class Control : public QObject
 public:
     explicit Control(QObject *parent = 0);
 
+private:
+    bool checkCallsAbove(int floor);
+    bool checkCallsBelow(int floor);
+    void serviceFloor(elev_button_type_t type, int floor);
+
 signals:
 
 public slots:
