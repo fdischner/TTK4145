@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui
+QT       += core gui network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -17,12 +17,16 @@ SOURCES += main.cpp\
     io.c \
     elev.c \
     elevator.cpp \
-    control.cpp
+    control.cpp \
+    networkmanager.cpp \
+    top.cpp
 
 HEADERS  += channels.h \
     io.h \
     elev.h \
     elevator.h \
-    control.h
+    control.h \
+    networkmanager.h \
+    top.h
 
 FORMS    +=

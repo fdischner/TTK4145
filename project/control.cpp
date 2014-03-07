@@ -79,7 +79,8 @@ void Control::serviceFloor(elev_button_type_t type, int floor)
     elevator->setButtonLamp(type, floor, 0);
 
     elevator->setDoorOpenLamp(1);
-    sleep(1);
+    // FIXME: change this to a timer so the alive messages don't timeout
+    usleep(500000);
     elevator->setDoorOpenLamp(0);
 
     if (elevator->direction == 1)
