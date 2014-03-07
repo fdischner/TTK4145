@@ -84,7 +84,7 @@ procedure exercise8 is
 		 -- Asynchronous Transfer of Control
 		 select
 		    Manager.Wait_Until_Aborted;
-			Num := Num + 5;
+			Num := Prev + 5;
 		 then abort
              ---------------------------------------
              -- PART 2: Do the transaction work here          
