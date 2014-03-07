@@ -98,6 +98,12 @@ bool Control::shouldService(int floor)
 {
     int i;
 
+    if (elevator->direction == 1 && call[BUTTON_CALL_UP][floor])
+        return true;
+
+    if (elevator->direction == -1 && call[BUTTON_CALL_DOWN][floor])
+        return true;
+
     if (elevator->direction == 1 && !checkCallsAbove(floor) && call[BUTTON_CALL_DOWN][floor])
     {
         elevator->direction = -1;
@@ -111,12 +117,6 @@ bool Control::shouldService(int floor)
     }
 
     if (call[BUTTON_COMMAND][floor])
-        return true;
-
-    if (elevator->direction == 1 && call[BUTTON_CALL_UP][floor])
-        return true;
-
-    if (elevator->direction == -1 && call[BUTTON_CALL_DOWN][floor])
         return true;
 
     // for safety
