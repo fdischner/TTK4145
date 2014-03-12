@@ -14,18 +14,18 @@ public:
     explicit Top(const char *argv0, pid_t parent_pid, QObject *parent = 0);
 
 private:
-    NetworkManager *network;
-    QTimer *message_timer, *imAlive_timer;
+    NetworkManager *local_network;
+    QTimer *message_timer;
     const char *path;
     pid_t parent_pid;
     Control *control;
+    QByteArray elev_state;
 
 signals:
 
 private slots:
     void onMessageReceived(const QByteArray &message);
     void onTakeOver();
-    void onSendMessage();
 };
 
 #endif // TOP_H

@@ -8,10 +8,10 @@
 Top::Top(const char *argv0, pid_t parent_pid, QObject *parent) :
     QObject(parent), message_timer(0), path (argv0), parent_pid(parent_pid)
 {
-    //Open a socket for sending messages to backup process
-    network = new NetworkManager(this);
-    network->initSocket(QAbstractSocket::UdpSocket, "127.0.0.1", 44445);
-    connect(network, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceived(QByteArray)));
+    //Open a socket to listen for messages from the parent
+    local_network = new NetworkManager(this);
+    local_network->initSocket(QAbstractSocket::UdpSocket, "127.0.0.1", 44445);
+    connect(local_network, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceived(QByteArray)));
 
     if (parent_pid == 0)
     {
@@ -29,14 +29,17 @@ Top::Top(const char *argv0, pid_t parent_pid, QObject *parent) :
 }
 
 void Top::onMessageReceived(const QByteArray &message) {
-    // TODO: should we check the message content?
+    elev_state = message;
+
     //Restart timer
     message_timer->start();
 }
 
 void Top::onTakeOver() {
     // don't listen for messages anymore
-    disconnect(network, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceived(QByteArray)));
+    disconnect(local_network, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceived(QByteArray)));
+    delete local_network;
+    local_network = 0;
 
     // stop waiting for messages from the master
     if (message_timer != 0)
@@ -55,18 +58,6 @@ void Top::onTakeOver() {
     // start the backup
     backup->startDetached(backup_program, args);
 
-    //Start a timer to send imAlive messages
-    imAlive_timer = new QTimer(this);
-    connect(imAlive_timer, SIGNAL(timeout()), this, SLOT(onSendMessage()));
-    // send alive messages every 100ms
-    imAlive_timer->start(100);
-
     // start the control module
-    control = new Control(this);
-}
-
-void Top::onSendMessage() {
-    // Send imAlive message to backup
-    // TODO: we should probably send the current state here
-    network->sendMessage(QByteArray("alive"));
+    control = new Control(this, elev_state);
 }
