@@ -4,6 +4,9 @@
 #include <QTimer>
 #include <QProcess>
 #include <signal.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 
 Top::Top(const char *argv0, pid_t parent_pid, QObject *parent) :
     QObject(parent), message_timer(0), path (argv0), parent_pid(parent_pid)
@@ -59,5 +62,5 @@ void Top::onTakeOver() {
     backup->startDetached(backup_program, args);
 
     // start the control module
-    control = new Control(this, elev_state);
+    control = new Control(elev_state, this);
 }

@@ -4,9 +4,11 @@
 #include <QObject>
 #include "elevator.h"
 class NetworkManager;
+class QTimer;
 
 struct elevator_state {
   bool call[3][N_FLOORS];
+  int direction;
 
   bool deserialize(const QByteArray &state);
   QByteArray serialize();
@@ -42,6 +44,7 @@ private:
     Elevator *elevator;
     elevator_state state;
     int service_timer_cnt;
+    int floor;
 };
 
 #endif // CONTROL_H

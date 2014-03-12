@@ -1,6 +1,7 @@
 #include "elevator.h"
 #include <QMetaType>
 
+static const int SPEED = 100;
 
 Elevator::Elevator(QObject *parent) :
     QThread(parent), floor(-1), wanted(-1), direction(-1), moving(false)
@@ -16,10 +17,8 @@ Elevator::Elevator(QObject *parent) :
 
     // reset elevator to a known position
     direction = -1;
-    elev_set_speed(-300);
-    while(elev_get_floor_sensor_signal() == -1);
-    // don't set the floor variable here so that the signal is emitted from the thread
     elev_set_speed(0);
+    // don't set the floor variable here so that the signal is emitted from the thread
 }
 
 void Elevator::run() {
@@ -29,6 +28,12 @@ void Elevator::run() {
     int prev_int = 0;
     bool prev_stop = false;
     bool prev_obs = false;
+
+    if (elev_get_floor_sensor_signal() == -1)
+    {
+        moving = true;
+        elev_set_speed(SPEED*direction);
+    }
 
     while (1) {
         int cur, up, down, tmp;
@@ -148,7 +153,7 @@ void Elevator::goToFloor(int floor)
         return;
     }
 
-    elev_set_speed(direction * 100);
+    elev_set_speed(direction * SPEED);
     moving = true;
 }
 

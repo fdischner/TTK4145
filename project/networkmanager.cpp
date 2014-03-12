@@ -4,6 +4,8 @@
 #include <QNetworkInterface>
 #include <QtDebug>
 
+const qint32 MAGIC = 0x12345678;
+
 NetworkManager::NetworkManager(QObject *parent) :
     QObject(parent), socket(0)
 {

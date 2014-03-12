@@ -2,27 +2,45 @@
 #include "elevator.h"
 #include "unistd.h"
 #include <QDataStream>
+#include "networkmanager.h"
+#include <QTimer>
+#include <QtDebug>
+
+enum {
+    STATE,
+    SERVICE,
+};
 
 QByteArray elevator_state::serialize()
 {
     QByteArray elev_state;
     QDataStream stream(&elev_state, QIODevice::WriteOnly);
+    qint8 type = STATE;
 
+    stream << type;
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < N_FLOORS; j++) {
             stream << call[i][j];
         }
     }
+    stream << direction;
     return elev_state;
 }
 
 bool elevator_state::deserialize(const QByteArray &state)
 {
+    qint8 type;
+
+    qDebug() << state.toHex();
     if (state.size() == 0) {
         return false;
     }
 
     QDataStream stream(state);
+
+    stream >> type;
+    if (type != STATE)
+        return false;
 
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < N_FLOORS; j++) {
@@ -30,6 +48,7 @@ bool elevator_state::deserialize(const QByteArray &state)
         }
     }
 
+    stream >> direction;
     return true;
 }
 
@@ -45,10 +64,22 @@ Control::Control(const QByteArray &elev_state, QObject *parent) :
     elevator_network->initSocket(QAbstractSocket::UdpSocket, "129.241.187.255", 44444);
     connect(elevator_network, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceived(QByteArray)));
 
-    //Initialize the state of the elevator
-    state.deserialize(elev_state);
-
     elevator = new Elevator(this);
+
+    //Initialize the state of the elevator
+    if (state.deserialize(elev_state))
+    {
+        for (int j = 0; j < N_FLOORS; j++) {
+            if (state.call[BUTTON_CALL_UP][j])
+                elevator->setButtonLamp(BUTTON_CALL_UP, j, 1);
+            if (state.call[BUTTON_CALL_DOWN][j])
+                elevator->setButtonLamp(BUTTON_CALL_DOWN, j, 1);
+            if (state.call[BUTTON_COMMAND][j])
+                elevator->setButtonLamp(BUTTON_COMMAND, j, 1);
+        }
+
+        elevator->direction = state.direction;
+    }
 
     connect(elevator, SIGNAL(floorSensor(int)), this, SLOT(onFloorSensor(int)));
     connect(elevator, SIGNAL(buttonSensor(elev_button_type_t,int)), this, SLOT(onButtonSensor(elev_button_type_t,int)));
@@ -67,6 +98,7 @@ Control::Control(const QByteArray &elev_state, QObject *parent) :
 }
 
 void Control::onSendMessage() {
+    state.direction = elevator->direction;
     QByteArray elev_state = state.serialize();
 
     // Send alive message (elevator state) to backup
@@ -75,18 +107,38 @@ void Control::onSendMessage() {
 }
 
 void Control::onMessageReceived(const QByteArray &message) {
-    elevator_state elev_state;
-    elev_state.deserialize(message);
+    QDataStream stream(message);
+    qint8 type;
 
-    //Restart timer
-    message_timer->start();
+    stream >> type;
 
-    for (int i = 0; i < BUTTON_COMMAND; i++) {
-        for (int j = 0; j < N_FLOORS; j++) {
-            if (elev_state.call[i][j])
-                state.call[i][j] = true;
+    switch (type)
+    {
+    case STATE:
+        elevator_state elev_state;
+        elev_state.deserialize(message);
+        for (int i = 0; i < BUTTON_COMMAND; i++) {
+            for (int j = 0; j < N_FLOORS; j++) {
+                if (elev_state.call[i][j])
+                    state.call[i][j] = true;
+            }
         }
+        // TODO: check if elevator should start moving
+        break;
+    case SERVICE:
+        int floor;
+        int direction;
+        stream >> floor;
+        stream >> direction;
+        if (direction == 1)
+            state.call[BUTTON_CALL_UP][floor] = false;
+        else if (direction == -1)
+            state.call[BUTTON_CALL_DOWN][floor] = false;
+        break;
     }
+
+
+
 }
 
 bool Control::checkCallsAbove(int floor)
@@ -94,7 +146,7 @@ bool Control::checkCallsAbove(int floor)
     // first check calls going up
     for (int i = floor+1; i < N_FLOORS; i++)
     {
-        if (call[BUTTON_COMMAND][i] || call[BUTTON_CALL_UP][i])
+        if (state.call[BUTTON_COMMAND][i] || state.call[BUTTON_CALL_UP][i])
         {
             elevator->goToFloor(i);
             return true;
@@ -103,7 +155,7 @@ bool Control::checkCallsAbove(int floor)
     // then check calls going down
     for (int i = floor+1; i < N_FLOORS; i++)
     {
-        if (call[BUTTON_COMMAND][i] || call[BUTTON_CALL_DOWN][i])
+        if (state.call[BUTTON_COMMAND][i] || state.call[BUTTON_CALL_DOWN][i])
         {
             elevator->goToFloor(i);
             return true;
@@ -118,7 +170,7 @@ bool Control::checkCallsBelow(int floor)
     // first check calls going down
     for (int i = floor-1; i >=0; i--)
     {
-        if (call[BUTTON_COMMAND][i] || call[BUTTON_CALL_DOWN][i])
+        if (state.call[BUTTON_COMMAND][i] || state.call[BUTTON_CALL_DOWN][i])
         {
             elevator->goToFloor(i);
             return true;
@@ -127,7 +179,7 @@ bool Control::checkCallsBelow(int floor)
     // then check calls going up
     for (int i = floor-1; i >= 0; i--)
     {
-        if (call[BUTTON_COMMAND][i] || call[BUTTON_CALL_UP][i])
+        if (state.call[BUTTON_COMMAND][i] || state.call[BUTTON_CALL_UP][i])
         {
             elevator->goToFloor(i);
             return true;
@@ -141,24 +193,31 @@ void Control::serviceFloor(elev_button_type_t type, int floor)
 {
     // internal calls are always serviced
     elevator->setButtonLamp(BUTTON_COMMAND, floor, 0);
-    call[BUTTON_COMMAND][floor] = false;
+    state.call[BUTTON_COMMAND][floor] = false;
 
     // if there is an external call, service it too
-    call[type][floor] = false;
+    state.call[type][floor] = false;
     elevator->setButtonLamp(type, floor, 0);
 
     elevator->setDoorOpenLamp(1);
-    // FIXME: change this to a timer so the alive messages don't timeout
-    //usleep(500000);
+
     // Start the service timer
     service_timer_cnt = 0;
     service_timer->start(100);
 }
 
 void Control::onServiceTimer() {
+    QByteArray message;
+    qint8 type = SERVICE;
+    QDataStream stream(&message, QIODevice::WriteOnly);
+
     service_timer_cnt++;
 
     //send message for floor being serviced
+    stream << type;
+    stream << floor;
+    stream << state.direction;
+    elevator_network->sendMessage(message);
 
     if (service_timer_cnt != 2000 / 100)
         return;
@@ -182,26 +241,32 @@ bool Control::shouldService(int floor)
 {
     int i;
 
-    if (elevator->direction == 1 && call[BUTTON_CALL_UP][floor])
+    if (elevator->direction == 1 && state.call[BUTTON_CALL_UP][floor])
         return true;
 
-    if (elevator->direction == -1 && call[BUTTON_CALL_DOWN][floor])
+    if (elevator->direction == -1 && state.call[BUTTON_CALL_DOWN][floor])
         return true;
 
-    if (elevator->direction == 1 && !checkCallsAbove(floor) && call[BUTTON_CALL_DOWN][floor])
+    if (elevator->direction == 1 && !checkCallsAbove(floor) && state.call[BUTTON_CALL_DOWN][floor])
     {
         elevator->direction = -1;
         return true;
     }
 
-    if (elevator->direction == -1 && !checkCallsBelow(floor) && call[BUTTON_CALL_UP][floor])
+    if (elevator->direction == -1 && !checkCallsBelow(floor) && state.call[BUTTON_CALL_UP][floor])
     {
         elevator->direction = 1;
         return true;
     }
 
-    if (call[BUTTON_COMMAND][floor])
+    if (state.call[BUTTON_COMMAND][floor])
         return true;
+
+    if (elevator->direction == -1 && !checkCallsBelow(floor) && checkCallsAbove(floor))
+        return false;
+
+    if (elevator->direction == 1 && !checkCallsAbove(floor) && checkCallsBelow(floor))
+        return false;
 
     // for safety
     if (floor == 0 || floor == N_FLOORS-1)
@@ -209,7 +274,7 @@ bool Control::shouldService(int floor)
 
     // In case there are no more requests, stop the elevator
     for (i = 0; i < N_FLOORS; i++) {
-        if (call[0][i] || call[1][i] || call[2][i])
+        if (state.call[0][i] || state.call[1][i] || state.call[2][i])
             break;
     }
 
@@ -221,6 +286,7 @@ bool Control::shouldService(int floor)
 
 void Control::onFloorSensor(int floor)
 {
+    this->floor = floor;
     if (shouldService(floor))
     {
         elevator->stop();
@@ -236,7 +302,10 @@ void Control::onButtonSensor(elev_button_type_t type, int floor)
 {
     elevator->setButtonLamp(type, floor, 1);
 
-    call[type][floor] = true;
+    state.call[type][floor] = true;
+
+    if (service_timer->isActive())
+        return;
 
     if (!elevator->moving)
     {
