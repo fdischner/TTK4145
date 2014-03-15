@@ -116,14 +116,22 @@ void Control::onMessageReceived(const QByteArray &message) {
     {
     case STATE:
         elevator_state elev_state;
-        elev_state.deserialize(message);
-        for (int i = 0; i < BUTTON_COMMAND; i++) {
-            for (int j = 0; j < N_FLOORS; j++) {
-                if (elev_state.call[i][j])
-                    state.call[i][j] = true;
+        if (elev_state.deserialize(message))
+        {
+            for (int i = 0; i < BUTTON_COMMAND; i++) {
+                for (int j = 0; j < N_FLOORS; j++) {
+                    // if we're already servicing this request,
+                    // then ignore status of other elevators
+                    if (j == floor &&
+                        ((elevator->direction == 1 && i == BUTTON_CALL_UP) ||
+                         (elevator->direction == -1 && i == BUTTON_CALL_DOWN)))
+                        continue;
+                    if (elev_state.call[i][j])
+                        state.call[i][j] = true;
+                }
             }
+            // TODO: check if elevator should start moving
         }
-        // TODO: check if elevator should start moving
         break;
     case SERVICE:
         int floor;
