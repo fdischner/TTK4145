@@ -31,7 +31,6 @@ bool elevator_state::deserialize(const QByteArray &state)
 {
     qint8 type;
 
-    qDebug() << state.toHex();
     if (state.size() == 0) {
         return false;
     }
@@ -126,8 +125,15 @@ void Control::onMessageReceived(const QByteArray &message) {
                         ((elevator->direction == 1 && i == BUTTON_CALL_UP) ||
                          (elevator->direction == -1 && i == BUTTON_CALL_DOWN)))
                         continue;
+
                     if (elev_state.call[i][j])
+                    {
                         state.call[i][j] = true;
+                        if (i == 0)
+                            elevator->setButtonLamp(BUTTON_CALL_UP, j, 1);
+                        else
+                            elevator->setButtonLamp(BUTTON_CALL_DOWN, j, 1);
+                    }
                 }
             }
             // TODO: check if elevator should start moving
