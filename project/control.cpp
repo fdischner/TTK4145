@@ -372,14 +372,15 @@ void Control::onFloorSensor(int floor)
 
 void Control::onButtonSensor(elev_button_type_t type, int floor)
 {
+    // ignore the request we're currently servicing
+    if (service_timer->isActive() && floor == this->floor && type == state.button_type)
+        return;
+
     elevator->setButtonLamp(type, floor, 1);
 
     state.call[type][floor] = true;
 
-    if (service_timer->isActive())
-        return;
-
-    if (!elevator->moving)
+    if (!service_timer->isActive() && !elevator->moving)
     {
         if (elevator->floor == floor)
             serviceFloor(type, floor);
