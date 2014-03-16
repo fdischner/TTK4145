@@ -138,9 +138,8 @@ void Control::onMessageReceived(const QByteArray &message) {
                 for (int j = 0; j < N_FLOORS; j++) {
                     // if we're already servicing this request,
                     // then ignore status of other elevators
-                    if (j == floor &&
-                        ((elevator->direction == 1 && i == BUTTON_CALL_UP) ||
-                         (elevator->direction == -1 && i == BUTTON_CALL_DOWN)))
+                    if (service_timer->isActive() && j == floor && state.button_type == i)
+                        // NOTE: maybe reset service count to keep door open longer?
                         continue;
 
                     if (elev_state.call[i][j])
@@ -153,7 +152,46 @@ void Control::onMessageReceived(const QByteArray &message) {
                     }
                 }
             }
-            // TODO: check if elevator should start moving
+            // TODO: check if elevator should start movin
+            // if were idle, then check for new calls to service
+            if (!service_timer->isActive() && !elevator->moving)
+            {
+                int i, j;
+
+                // first check for calls at the current floor and just service them
+                if (state.call[BUTTON_CALL_DOWN][floor])
+                {
+                   serviceFloor(BUTTON_CALL_DOWN, floor);
+                }
+                else if (state.call[BUTTON_CALL_UP][floor])
+                {
+                   serviceFloor(BUTTON_CALL_UP, floor);
+                }
+                else
+                {
+                    // if there were no calls at the current floor, check others in order of proximity
+                    // then send the elevator to the appropriate floor
+                    for (i = floor-1, j = floor+1; i >= 0 || j < N_FLOORS; i--, j++)
+                    {
+                        if (i >= 0)
+                        {
+                            if (state.call[BUTTON_CALL_DOWN][i] || state.call[BUTTON_CALL_UP][i])
+                            {
+                                elevator->goToFloor(i);
+                                break;
+                            }
+                        }
+                        if (j < N_FLOORS)
+                        {
+                            if (state.call[BUTTON_CALL_DOWN][j] || state.call[BUTTON_CALL_UP][j])
+                            {
+                                elevator->goToFloor(j);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
         }
         break;
     case SERVICE:
