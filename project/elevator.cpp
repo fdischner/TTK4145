@@ -114,6 +114,10 @@ void Elevator::setFloorIndicator(int floor)
 
     if (wanted != -1 && floor == wanted)
         stop();
+
+    // for safety
+    if (floor == 0 || floor == N_FLOORS-1)
+        stop();
 }
 
 void Elevator::setButtonLamp(elev_button_type_t button, int floor, int value)

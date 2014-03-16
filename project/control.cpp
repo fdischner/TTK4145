@@ -287,10 +287,6 @@ bool Control::shouldService(int floor)
     if (elevator->direction == 1 && !checkCallsAbove(floor) && checkCallsBelow(floor))
         return false;
 
-    // for safety
-    if (floor == 0 || floor == N_FLOORS-1)
-        return true;
-
     // In case there are no more requests, stop the elevator
     for (i = 0; i < N_FLOORS; i++) {
         if (state.call[0][i] || state.call[1][i] || state.call[2][i])
@@ -298,7 +294,10 @@ bool Control::shouldService(int floor)
     }
 
     if (i == N_FLOORS)
-        return true;
+    {
+        // stop the elevator, but don't service
+        elevator->stop();
+    }
 
     return false;
 }
