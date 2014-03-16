@@ -48,7 +48,24 @@ bool elevator_state::deserialize(const QByteArray &state)
     }
 
     stream >> direction;
+    stream >> button_type;
     return true;
+}
+
+QDataStream &operator<<(QDataStream & stream, const elev_button_type_t &type)
+{
+    stream << (quint8) type;
+
+    return stream;
+}
+
+QDataStream &operator>>(QDataStream & stream, elev_button_type_t &type)
+{
+    quint8 tmp;
+    stream >> tmp;
+    type = (elev_button_type_t) tmp;
+
+    return stream;
 }
 
 Control::Control(const QByteArray &elev_state, QObject *parent) :
@@ -141,11 +158,10 @@ void Control::onMessageReceived(const QByteArray &message) {
         break;
     case SERVICE:
         int floor;
-        int direction;
         elev_button_type_t button_type;
         stream >> floor;
-        stream >> direction;
-        button_type = (elev_button_type_t) direction;
+        stream >> button_type;
+        //qDebug() << "servicing floor: " << floor << " direction " << direction << " type " << button_type;
         if (button_type != BUTTON_COMMAND)
         {
             state.call[button_type][floor] = false;
@@ -216,7 +232,7 @@ void Control::serviceFloor(elev_button_type_t type, int floor)
     state.call[type][floor] = false;
     elevator->setButtonLamp(type, floor, 0);
 
-    state.direction = type;
+    state.button_type = type;
 
     elevator->setDoorOpenLamp(1);
 
@@ -235,7 +251,7 @@ void Control::onServiceTimer() {
     //send message for floor being serviced
     stream << type;
     stream << floor;
-    stream << state.direction;
+    stream << state.button_type;
     elevator_network->sendMessage(message);
 
     if (service_timer_cnt != 2000 / 100)
