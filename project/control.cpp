@@ -142,12 +142,15 @@ void Control::onMessageReceived(const QByteArray &message) {
     case SERVICE:
         int floor;
         int direction;
+        elev_button_type_t button_type;
         stream >> floor;
         stream >> direction;
-        if (direction == 1)
-            state.call[BUTTON_CALL_UP][floor] = false;
-        else if (direction == -1)
-            state.call[BUTTON_CALL_DOWN][floor] = false;
+        button_type = (elev_button_type_t) direction;
+        if (button_type != BUTTON_COMMAND)
+        {
+            state.call[button_type][floor] = false;
+            elevator->setButtonLamp(button_type, floor, 0);
+        }
         break;
     }
 
@@ -212,6 +215,8 @@ void Control::serviceFloor(elev_button_type_t type, int floor)
     // if there is an external call, service it too
     state.call[type][floor] = false;
     elevator->setButtonLamp(type, floor, 0);
+
+    state.direction = type;
 
     elevator->setDoorOpenLamp(1);
 
