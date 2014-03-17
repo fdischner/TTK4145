@@ -120,7 +120,7 @@ void Elevator::setFloorIndicator(int floor)
         stop();
 }
 
-void Elevator::setButtonLamp(elev_button_type_t button, int floor, int value)
+void Elevator::setButtonLamp(elev_button_type_t button, int floor, bool value)
 {
     if (button == BUTTON_CALL_DOWN && floor == 0)
         return;
@@ -128,7 +128,7 @@ void Elevator::setButtonLamp(elev_button_type_t button, int floor, int value)
     if (button == BUTTON_CALL_UP && floor == N_FLOORS-1)
         return;
 
-	elev_set_button_lamp(button, floor, value);
+    elev_set_button_lamp(button, floor, value ? 1 : 0);
 }
 
 void Elevator::setStopLamp(int value)

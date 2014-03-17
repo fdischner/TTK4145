@@ -6,19 +6,20 @@
 #include <QDataStream>
 #include <QHostAddress>
 #include <QMap>
+#include <QPair>
 
 class NetworkManager;
 class QTimer;
 
+typedef QPair<qint64, bool> Button;
+
 struct internal_state {
-    bool call[N_FLOORS];
-    qint64 timestamp;
+    Button call[N_FLOORS];
 };
 
 struct elevator_state {
-  bool call[3][N_FLOORS];
+  Button call[3][N_FLOORS];
   int direction;
-  qint64 timestamp;
   QMap<quint32, internal_state> remote;
 
   elev_button_type_t button_type;

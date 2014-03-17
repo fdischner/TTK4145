@@ -8,25 +8,17 @@
 #include <QNetworkInterface>
 #include <QtDebug>
 
-enum {
-    STATE,
-    SERVICE,
-};
-
 QByteArray elevator_state::serialize()
 {
     QByteArray elev_state;
     QDataStream stream(&elev_state, QIODevice::WriteOnly);
-    qint8 type = STATE;
 
-    stream << type;
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < N_FLOORS; j++) {
             stream << call[i][j];
         }
     }
     stream << direction;
-    stream << timestamp;
     stream << remote;
 
     return elev_state;
@@ -34,17 +26,11 @@ QByteArray elevator_state::serialize()
 
 bool elevator_state::deserialize(const QByteArray &state)
 {
-    qint8 type;
-
     if (state.size() == 0) {
         return false;
     }
 
     QDataStream stream(state);
-
-    stream >> type;
-    if (type != STATE)
-        return false;
 
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < N_FLOORS; j++) {
@@ -53,10 +39,9 @@ bool elevator_state::deserialize(const QByteArray &state)
     }
 
     stream >> direction;
-    stream >> timestamp;
     stream >> remote;
 
-    return true;
+    return (stream.status() == QDataStream::Ok);
 }
 
 QDataStream &operator<<(QDataStream & stream, const elev_button_type_t &type)
@@ -80,7 +65,6 @@ QDataStream &operator<<(QDataStream & stream, const internal_state &state)
     for (int i = 0; i < N_FLOORS; i++)
         stream << state.call[i];
 
-    stream << state.timestamp;
     return stream;
 }
 
@@ -88,8 +72,6 @@ QDataStream &operator>>(QDataStream & stream, internal_state &state)
 {
     for (int i = 0; i < N_FLOORS; i++)
         stream >> state.call[i];
-
-    stream >> state.timestamp;
 
     return stream;
 }
@@ -112,11 +94,11 @@ Control::Control(const QByteArray &elev_state, QObject *parent) :
     if (state.deserialize(elev_state))
     {
         for (int j = 0; j < N_FLOORS; j++) {
-            if (state.call[BUTTON_CALL_UP][j])
+            if (state.call[BUTTON_CALL_UP][j].second)
                 elevator->setButtonLamp(BUTTON_CALL_UP, j, 1);
-            if (state.call[BUTTON_CALL_DOWN][j])
+            if (state.call[BUTTON_CALL_DOWN][j].second)
                 elevator->setButtonLamp(BUTTON_CALL_DOWN, j, 1);
-            if (state.call[BUTTON_COMMAND][j])
+            if (state.call[BUTTON_COMMAND][j].second)
                 elevator->setButtonLamp(BUTTON_COMMAND, j, 1);
         }
 
@@ -150,122 +132,96 @@ void Control::onSendMessage() {
 
 void Control::onMessageReceived(const QByteArray &message, const QHostAddress &sender) {
     QDataStream stream(message);
-    qint8 type;
+    elevator_state elev_state;
 
-    stream >> type;
-
-    switch (type)
+    if (elev_state.deserialize(message))
     {
-    case STATE:
-    {
-        elevator_state elev_state;
-        if (elev_state.deserialize(message))
+        // update internal state of sending elevator
+        for (int i = 0; i < N_FLOORS; i++)
         {
-            // store internal state of sending elevator, if newer
-            if (state.remote[sender.toIPv4Address()].timestamp < elev_state.timestamp)
+            if (state.remote[sender.toIPv4Address()].call[i].first < elev_state.call[BUTTON_COMMAND][i].first)
+                state.remote[sender.toIPv4Address()].call[i] = elev_state.call[BUTTON_COMMAND][i];
+        }
+
+        // update external calls
+        for (int i = 0; i < BUTTON_COMMAND; i++) {
+            for (int j = 0; j < N_FLOORS; j++) {
+                // update only if newer
+                if (elev_state.call[i][j].first > state.call[i][j].first)
+                {
+                    // set new state
+                    state.call[i][j] = elev_state.call[i][j];
+                    // update lamp
+                    if (i == 0)
+                        elevator->setButtonLamp(BUTTON_CALL_UP, j, state.call[i][j].second);
+                    else
+                        elevator->setButtonLamp(BUTTON_CALL_DOWN, j, state.call[i][j].second);
+                }
+            }
+        }
+
+        // update our internal state, if received is newer
+        foreach (const QHostAddress &address, QNetworkInterface::allAddresses())
+        {
+            if (elev_state.remote.contains(address.toIPv4Address()))
             {
-                state.remote[sender.toIPv4Address()].timestamp = elev_state.timestamp;
+                struct internal_state istate = elev_state.remote[address.toIPv4Address()];
+
                 for (int i = 0; i < N_FLOORS; i++)
-                    state.remote[sender.toIPv4Address()].call[i] = elev_state.call[BUTTON_COMMAND][i];
-            }
-
-            // update external calls
-            for (int i = 0; i < BUTTON_COMMAND; i++) {
-                for (int j = 0; j < N_FLOORS; j++) {
-                    // if we're already servicing this request,
-                    // then ignore status of other elevators
-                    if (service_timer->isActive() && j == floor && state.button_type == i)
-                        // NOTE: maybe reset service count to keep door open longer?
-                        continue;
-
-                    if (elev_state.call[i][j])
+                {
+                    if (istate.call[i].first > state.call[BUTTON_COMMAND][i].first)
                     {
-                        state.call[i][j] = true;
-                        if (i == 0)
-                            elevator->setButtonLamp(BUTTON_CALL_UP, j, 1);
-                        else
-                            elevator->setButtonLamp(BUTTON_CALL_DOWN, j, 1);
+                        state.call[BUTTON_COMMAND][i] = istate.call[i];
+                        elevator->setButtonLamp(BUTTON_COMMAND, i, istate.call[i].second);
                     }
                 }
-            }
 
-            // update our internal state, if received is newer
-            foreach (const QHostAddress &address, QNetworkInterface::allAddresses())
-            {
-                if (elev_state.remote.contains(address.toIPv4Address()))
-                {
-                    struct internal_state istate = elev_state.remote[address.toIPv4Address()];
-
-                    if (istate.timestamp > state.timestamp)
-                    {
-                        for (int i = 0; i < N_FLOORS; i++)
-                            if (istate.call[i])
-                                state.call[BUTTON_COMMAND][i] = true;
-                        state.timestamp = istate.timestamp;
-                    }
-                }
-            }
-
-            // if we're idle, then check for new calls to service
-            if (!service_timer->isActive() && !elevator->moving)
-            {
-                int i, j;
-
-                // first check for calls at the current floor and just service them
-                if (state.call[BUTTON_CALL_DOWN][floor])
-                {
-                   serviceFloor(BUTTON_CALL_DOWN, floor);
-                }
-                else if (state.call[BUTTON_CALL_UP][floor])
-                {
-                   serviceFloor(BUTTON_CALL_UP, floor);
-                }
-                else
-                {
-                    // if there were no calls at the current floor, check others in order of proximity
-                    // then send the elevator to the appropriate floor
-                    for (i = floor-1, j = floor+1; i >= 0 || j < N_FLOORS; i--, j++)
-                    {
-                        if (i >= 0)
-                        {
-                            if (state.call[BUTTON_CALL_DOWN][i] || state.call[BUTTON_CALL_UP][i])
-                            {
-                                elevator->goToFloor(i);
-                                break;
-                            }
-                        }
-                        if (j < N_FLOORS)
-                        {
-                            if (state.call[BUTTON_CALL_DOWN][j] || state.call[BUTTON_CALL_UP][j])
-                            {
-                                elevator->goToFloor(j);
-                                break;
-                            }
-                        }
-                    }
-                }
+                // don't check other addresses, if we already found a match
+                break;
             }
         }
-    }
-        break;
-    case SERVICE:
-    {
-        int floor;
-        elev_button_type_t button_type;
-        stream >> floor;
-        stream >> button_type;
-        //qDebug() << "servicing floor: " << floor << " direction " << direction << " type " << button_type;
-        if (button_type != BUTTON_COMMAND)
+
+        // TODO: make this a function call
+        // if we're idle, then check for new calls to service
+        if (!service_timer->isActive() && !elevator->moving)
         {
-            state.call[button_type][floor] = false;
-            elevator->setButtonLamp(button_type, floor, 0);
+            int i, j;
+
+            // first check for calls at the current floor and just service them
+            if (state.call[BUTTON_CALL_DOWN][floor].second)
+            {
+                serviceFloor(BUTTON_CALL_DOWN, floor);
+            }
+            else if (state.call[BUTTON_CALL_UP][floor].second)
+            {
+                serviceFloor(BUTTON_CALL_UP, floor);
+            }
+            else
+            {
+                // if there were no calls at the current floor, check others in order of proximity
+                // then send the elevator to the appropriate floor
+                for (i = floor-1, j = floor+1; i >= 0 || j < N_FLOORS; i--, j++)
+                {
+                    if (i >= 0)
+                    {
+                        if (state.call[BUTTON_CALL_DOWN][i].second || state.call[BUTTON_CALL_UP][i].second)
+                        {
+                            elevator->goToFloor(i);
+                            break;
+                        }
+                    }
+                    if (j < N_FLOORS)
+                    {
+                        if (state.call[BUTTON_CALL_DOWN][j].second || state.call[BUTTON_CALL_UP][j].second)
+                        {
+                            elevator->goToFloor(j);
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
-        break;
-    }
-
-
-
 }
 
 bool Control::checkCallsAbove(int floor)
@@ -273,7 +229,7 @@ bool Control::checkCallsAbove(int floor)
     // first check calls going up
     for (int i = floor+1; i < N_FLOORS; i++)
     {
-        if (state.call[BUTTON_COMMAND][i] || state.call[BUTTON_CALL_UP][i])
+        if (state.call[BUTTON_COMMAND][i].second || state.call[BUTTON_CALL_UP][i].second)
         {
             elevator->goToFloor(i);
             return true;
@@ -282,7 +238,7 @@ bool Control::checkCallsAbove(int floor)
     // then check calls going down
     for (int i = floor+1; i < N_FLOORS; i++)
     {
-        if (state.call[BUTTON_COMMAND][i] || state.call[BUTTON_CALL_DOWN][i])
+        if (state.call[BUTTON_COMMAND][i].second || state.call[BUTTON_CALL_DOWN][i].second)
         {
             elevator->goToFloor(i);
             return true;
@@ -297,7 +253,7 @@ bool Control::checkCallsBelow(int floor)
     // first check calls going down
     for (int i = floor-1; i >=0; i--)
     {
-        if (state.call[BUTTON_COMMAND][i] || state.call[BUTTON_CALL_DOWN][i])
+        if (state.call[BUTTON_COMMAND][i].second || state.call[BUTTON_CALL_DOWN][i].second)
         {
             elevator->goToFloor(i);
             return true;
@@ -306,7 +262,7 @@ bool Control::checkCallsBelow(int floor)
     // then check calls going up
     for (int i = floor-1; i >= 0; i--)
     {
-        if (state.call[BUTTON_COMMAND][i] || state.call[BUTTON_CALL_UP][i])
+        if (state.call[BUTTON_COMMAND][i].second || state.call[BUTTON_CALL_UP][i].second)
         {
             elevator->goToFloor(i);
             return true;
@@ -316,42 +272,30 @@ bool Control::checkCallsBelow(int floor)
     return false;
 }
 
+static const int SERVICE_TIME = 2000;
+
 void Control::serviceFloor(elev_button_type_t type, int floor)
 {
     // internal calls are always serviced
-    elevator->setButtonLamp(BUTTON_COMMAND, floor, 0);
-    state.call[BUTTON_COMMAND][floor] = false;
+    elevator->setButtonLamp(BUTTON_COMMAND, floor, false);
+    state.call[BUTTON_COMMAND][floor].first = QDateTime::currentMSecsSinceEpoch();
+    state.call[BUTTON_COMMAND][floor].second = false;
 
     // if there is an external call, service it too
-    state.call[type][floor] = false;
-    elevator->setButtonLamp(type, floor, 0);
+    // set timestamp to end of service time so button presses during service are ignored
+    state.call[type][floor].first = QDateTime::currentMSecsSinceEpoch() + SERVICE_TIME;
+    state.call[type][floor].second = false;
+    elevator->setButtonLamp(type, floor, false);
 
-    state.timestamp = QDateTime::currentMSecsSinceEpoch();
     state.button_type = type;
 
     elevator->setDoorOpenLamp(1);
 
     // Start the service timer
-    service_timer_cnt = 0;
-    service_timer->start(100);
+    service_timer->start(SERVICE_TIME);
 }
 
 void Control::onServiceTimer() {
-    QByteArray message;
-    qint8 type = SERVICE;
-    QDataStream stream(&message, QIODevice::WriteOnly);
-
-    service_timer_cnt++;
-
-    //send message for floor being serviced
-    stream << type;
-    stream << floor;
-    stream << state.button_type;
-    elevator_network->sendMessage(message);
-
-    if (service_timer_cnt != 2000 / 100)
-        return;
-
     service_timer->stop();
     elevator->setDoorOpenLamp(0);
 
@@ -371,25 +315,25 @@ bool Control::shouldService(int floor)
 {
     int i;
 
-    if (elevator->direction == 1 && state.call[BUTTON_CALL_UP][floor])
+    if (elevator->direction == 1 && state.call[BUTTON_CALL_UP][floor].second)
         return true;
 
-    if (elevator->direction == -1 && state.call[BUTTON_CALL_DOWN][floor])
+    if (elevator->direction == -1 && state.call[BUTTON_CALL_DOWN][floor].second)
         return true;
 
-    if (elevator->direction == 1 && !checkCallsAbove(floor) && state.call[BUTTON_CALL_DOWN][floor])
+    if (elevator->direction == 1 && !checkCallsAbove(floor) && state.call[BUTTON_CALL_DOWN][floor].second)
     {
         elevator->direction = -1;
         return true;
     }
 
-    if (elevator->direction == -1 && !checkCallsBelow(floor) && state.call[BUTTON_CALL_UP][floor])
+    if (elevator->direction == -1 && !checkCallsBelow(floor) && state.call[BUTTON_CALL_UP][floor].second)
     {
         elevator->direction = 1;
         return true;
     }
 
-    if (state.call[BUTTON_COMMAND][floor])
+    if (state.call[BUTTON_COMMAND][floor].second)
         return true;
 
     if (elevator->direction == -1 && !checkCallsBelow(floor) && checkCallsAbove(floor))
@@ -400,7 +344,7 @@ bool Control::shouldService(int floor)
 
     // In case there are no more requests, stop the elevator
     for (i = 0; i < N_FLOORS; i++) {
-        if (state.call[0][i] || state.call[1][i] || state.call[2][i])
+        if (state.call[0][i].second || state.call[1][i].second || state.call[2][i].second)
             break;
     }
 
@@ -433,9 +377,9 @@ void Control::onButtonSensor(elev_button_type_t type, int floor)
     if (service_timer->isActive() && floor == this->floor && type == state.button_type)
         return;
 
-    elevator->setButtonLamp(type, floor, 1);
-    state.call[type][floor] = true;
-    state.timestamp = QDateTime::currentMSecsSinceEpoch();
+    elevator->setButtonLamp(type, floor, true);
+    state.call[type][floor].first = QDateTime::currentMSecsSinceEpoch();
+    state.call[type][floor].second = true;
 
     if (!service_timer->isActive() && !elevator->moving)
     {
