@@ -4,6 +4,7 @@
 #include <QObject>
 #include "elevator.h"
 #include <QDataStream>
+#include <QHostAddress>
 
 class NetworkManager;
 class QTimer;
@@ -40,7 +41,7 @@ public slots:
 
 private slots:
     void onSendMessage();
-    void onMessageReceived(const QByteArray &message);
+    void onMessageReceived(const QByteArray &message, const QHostAddress &sender);
     void onServiceTimer();
 
 private:

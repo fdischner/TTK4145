@@ -16,7 +16,7 @@ public:
     void initSocket(QAbstractSocket::SocketType type, const QString& address, quint16 port);
     
 signals:
-    void messageReceived(const QByteArray& message);
+    void messageReceived(const QByteArray& message, const QHostAddress &sender);
 
 public slots:
     void sendMessage(const QByteArray& message);

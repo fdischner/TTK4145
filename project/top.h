@@ -2,6 +2,7 @@
 #define TOP_H
 
 #include <QObject>
+#include <QHostAddress>
 
 class QTimer;
 class NetworkManager;
@@ -24,7 +25,7 @@ private:
 signals:
 
 private slots:
-    void onMessageReceived(const QByteArray &message);
+    void onMessageReceived(const QByteArray &message, const QHostAddress &sender);
     void onTakeOver();
 };
 

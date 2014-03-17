@@ -78,7 +78,7 @@ Control::Control(const QByteArray &elev_state, QObject *parent) :
     //Open a socket for sending messages to other elevators
     elevator_network = new NetworkManager(this);
     elevator_network->initSocket(QAbstractSocket::UdpSocket, "129.241.187.255", 44444);
-    connect(elevator_network, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceived(QByteArray)));
+    connect(elevator_network, SIGNAL(messageReceived(QByteArray,QHostAddress)), this, SLOT(onMessageReceived(QByteArray)));
 
     elevator = new Elevator(this);
 
@@ -122,7 +122,7 @@ void Control::onSendMessage() {
     elevator_network->sendMessage(elev_state);
 }
 
-void Control::onMessageReceived(const QByteArray &message) {
+void Control::onMessageReceived(const QByteArray &message, const QHostAddress &sender) {
     QDataStream stream(message);
     qint8 type;
 

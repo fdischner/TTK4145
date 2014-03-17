@@ -14,7 +14,7 @@ Top::Top(const char *argv0, pid_t parent_pid, QObject *parent) :
     //Open a socket to listen for messages from the parent
     local_network = new NetworkManager(this);
     local_network->initSocket(QAbstractSocket::UdpSocket, "127.0.0.1", 44445);
-    connect(local_network, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceived(QByteArray)));
+    connect(local_network, SIGNAL(messageReceived(QByteArray,QHostAddress)), this, SLOT(onMessageReceived(QByteArray,QHostAddress)));
 
     if (parent_pid == 0)
     {
@@ -31,7 +31,7 @@ Top::Top(const char *argv0, pid_t parent_pid, QObject *parent) :
     }
 }
 
-void Top::onMessageReceived(const QByteArray &message) {
+void Top::onMessageReceived(const QByteArray &message, const QHostAddress &sender) {
     elev_state = message;
 
     //Restart timer

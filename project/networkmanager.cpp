@@ -85,7 +85,7 @@ void NetworkManager::onReadyRead()
 
             // don't emit empty messages
             if (!data.isEmpty())
-                emit messageReceived(data);
+                emit messageReceived(data, sender);
         }
     }
     else
@@ -116,7 +116,7 @@ void NetworkManager::onReadyRead()
 
                 // only emit message if size is greater than zero
                 if (pos != from)
-                    emit messageReceived(data.mid(from, pos - from));
+                    emit messageReceived(data.mid(from, pos - from), address);
 
                 // move to start of next message
                 from = pos + 1;
