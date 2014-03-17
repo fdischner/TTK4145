@@ -5,18 +5,30 @@
 #include "elevator.h"
 #include <QDataStream>
 #include <QHostAddress>
+#include <QMap>
 
 class NetworkManager;
 class QTimer;
 
+struct internal_state {
+    bool call[N_FLOORS];
+    qint64 timestamp;
+};
+
 struct elevator_state {
   bool call[3][N_FLOORS];
   int direction;
+  qint64 timestamp;
+  QMap<quint32, internal_state> remote;
+
   elev_button_type_t button_type;
 
   bool deserialize(const QByteArray &state);
   QByteArray serialize();
 };
+
+QDataStream &operator<<(QDataStream & stream, const internal_state &state);
+QDataStream &operator>>(QDataStream & stream, internal_state &state);
 
 QDataStream &operator<<(QDataStream & stream, const elev_button_type_t &type);
 QDataStream &operator>>(QDataStream & stream, elev_button_type_t &type);

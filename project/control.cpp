@@ -4,6 +4,8 @@
 #include <QDataStream>
 #include "networkmanager.h"
 #include <QTimer>
+#include <QDateTime>
+#include <QNetworkInterface>
 #include <QtDebug>
 
 enum {
@@ -24,6 +26,9 @@ QByteArray elevator_state::serialize()
         }
     }
     stream << direction;
+    stream << timestamp;
+    stream << remote;
+
     return elev_state;
 }
 
@@ -48,7 +53,9 @@ bool elevator_state::deserialize(const QByteArray &state)
     }
 
     stream >> direction;
-    stream >> button_type;
+    stream >> timestamp;
+    stream >> remote;
+
     return true;
 }
 
@@ -64,6 +71,25 @@ QDataStream &operator>>(QDataStream & stream, elev_button_type_t &type)
     quint8 tmp;
     stream >> tmp;
     type = (elev_button_type_t) tmp;
+
+    return stream;
+}
+
+QDataStream &operator<<(QDataStream & stream, const internal_state &state)
+{
+    for (int i = 0; i < N_FLOORS; i++)
+        stream << state.call[i];
+
+    stream << state.timestamp;
+    return stream;
+}
+
+QDataStream &operator>>(QDataStream & stream, internal_state &state)
+{
+    for (int i = 0; i < N_FLOORS; i++)
+        stream >> state.call[i];
+
+    stream >> state.timestamp;
 
     return stream;
 }
@@ -131,9 +157,19 @@ void Control::onMessageReceived(const QByteArray &message, const QHostAddress &s
     switch (type)
     {
     case STATE:
+    {
         elevator_state elev_state;
         if (elev_state.deserialize(message))
         {
+            // store internal state of sending elevator, if newer
+            if (state.remote[sender.toIPv4Address()].timestamp < elev_state.timestamp)
+            {
+                state.remote[sender.toIPv4Address()].timestamp = elev_state.timestamp;
+                for (int i = 0; i < N_FLOORS; i++)
+                    state.remote[sender.toIPv4Address()].call[i] = elev_state.call[BUTTON_COMMAND][i];
+            }
+
+            // update external calls
             for (int i = 0; i < BUTTON_COMMAND; i++) {
                 for (int j = 0; j < N_FLOORS; j++) {
                     // if we're already servicing this request,
@@ -152,8 +188,25 @@ void Control::onMessageReceived(const QByteArray &message, const QHostAddress &s
                     }
                 }
             }
-            // TODO: check if elevator should start movin
-            // if were idle, then check for new calls to service
+
+            // update our internal state, if received is newer
+            foreach (const QHostAddress &address, QNetworkInterface::allAddresses())
+            {
+                if (elev_state.remote.contains(address.toIPv4Address()))
+                {
+                    struct internal_state istate = elev_state.remote[address.toIPv4Address()];
+
+                    if (istate.timestamp > state.timestamp)
+                    {
+                        for (int i = 0; i < N_FLOORS; i++)
+                            if (istate.call[i])
+                                state.call[BUTTON_COMMAND][i] = true;
+                        state.timestamp = istate.timestamp;
+                    }
+                }
+            }
+
+            // if we're idle, then check for new calls to service
             if (!service_timer->isActive() && !elevator->moving)
             {
                 int i, j;
@@ -193,8 +246,10 @@ void Control::onMessageReceived(const QByteArray &message, const QHostAddress &s
                 }
             }
         }
+    }
         break;
     case SERVICE:
+    {
         int floor;
         elev_button_type_t button_type;
         stream >> floor;
@@ -205,6 +260,7 @@ void Control::onMessageReceived(const QByteArray &message, const QHostAddress &s
             state.call[button_type][floor] = false;
             elevator->setButtonLamp(button_type, floor, 0);
         }
+    }
         break;
     }
 
@@ -270,6 +326,7 @@ void Control::serviceFloor(elev_button_type_t type, int floor)
     state.call[type][floor] = false;
     elevator->setButtonLamp(type, floor, 0);
 
+    state.timestamp = QDateTime::currentMSecsSinceEpoch();
     state.button_type = type;
 
     elevator->setDoorOpenLamp(1);
@@ -377,8 +434,8 @@ void Control::onButtonSensor(elev_button_type_t type, int floor)
         return;
 
     elevator->setButtonLamp(type, floor, 1);
-
     state.call[type][floor] = true;
+    state.timestamp = QDateTime::currentMSecsSinceEpoch();
 
     if (!service_timer->isActive() && !elevator->moving)
     {
