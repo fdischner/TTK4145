@@ -8,73 +8,7 @@
 #include <QNetworkInterface>
 #include <QtDebug>
 
-QByteArray elevator_state::serialize()
-{
-    QByteArray elev_state;
-    QDataStream stream(&elev_state, QIODevice::WriteOnly);
-
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < N_FLOORS; j++) {
-            stream << call[i][j];
-        }
-    }
-    stream << direction;
-    stream << remote;
-
-    return elev_state;
-}
-
-bool elevator_state::deserialize(const QByteArray &state)
-{
-    if (state.size() == 0) {
-        return false;
-    }
-
-    QDataStream stream(state);
-
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < N_FLOORS; j++) {
-            stream >> call[i][j];
-        }
-    }
-
-    stream >> direction;
-    stream >> remote;
-
-    return (stream.status() == QDataStream::Ok);
-}
-
-QDataStream &operator<<(QDataStream & stream, const elev_button_type_t &type)
-{
-    stream << (quint8) type;
-
-    return stream;
-}
-
-QDataStream &operator>>(QDataStream & stream, elev_button_type_t &type)
-{
-    quint8 tmp;
-    stream >> tmp;
-    type = (elev_button_type_t) tmp;
-
-    return stream;
-}
-
-QDataStream &operator<<(QDataStream & stream, const internal_state &state)
-{
-    for (int i = 0; i < N_FLOORS; i++)
-        stream << state.call[i];
-
-    return stream;
-}
-
-QDataStream &operator>>(QDataStream & stream, internal_state &state)
-{
-    for (int i = 0; i < N_FLOORS; i++)
-        stream >> state.call[i];
-
-    return stream;
-}
+static const int SERVICE_TIME = 2000;
 
 Control::Control(const QByteArray &elev_state, QObject *parent) :
     QObject(parent), state()
@@ -119,6 +53,10 @@ Control::Control(const QByteArray &elev_state, QObject *parent) :
     //Start a timer to send servicing floor messages
     service_timer = new QTimer(this);
     connect(service_timer, SIGNAL(timeout()), this, SLOT(onServiceTimer()));
+
+    //Start a timer for servicing when elevator is idle
+    idle_delay_timer = new QTimer(this);
+    connect(idle_delay_timer, SIGNAL(timeout()), this, SLOT(onIdleDelayTimer()));
 }
 
 void Control::onSendMessage() {
@@ -181,51 +119,92 @@ void Control::onMessageReceived(const QByteArray &message, const QHostAddress &s
             }
         }
 
-        // TODO: make this a function call
         // if we're idle, then check for new calls to service
-        if (!service_timer->isActive() && !elevator->moving)
-        {
-            int i, j;
+        idleCheckCalls();
+    }
+}
 
-            // first check for calls at the current floor and just service them
-            if (state.call[BUTTON_CALL_DOWN][floor].second)
+void Control::idleCheckCalls()
+{
+    if (service_timer->isActive() || elevator->moving)
+        return;
+
+    int i, j;
+
+    // first check for calls at the current floor and just service them
+    if (state.call[BUTTON_CALL_DOWN][floor].second)
+    {
+        serviceFloor(BUTTON_CALL_DOWN, floor);
+    }
+    else if (state.call[BUTTON_CALL_UP][floor].second)
+    {
+        serviceFloor(BUTTON_CALL_UP, floor);
+    }
+    else if (state.call[BUTTON_COMMAND][floor].second)
+    {
+        serviceFloor(BUTTON_COMMAND, floor);
+    }
+    else
+    {
+        // if there were no calls at the current floor, check others in order of proximity
+        // then send the elevator to the appropriate floor
+        // internal calls have priority
+        // TODO: make this a function
+        for (i = floor-1, j = floor+1; i >= 0 || j < N_FLOORS; i--, j++)
+        {
+            if (i >= 0)
             {
-                serviceFloor(BUTTON_CALL_DOWN, floor);
-            }
-            else if (state.call[BUTTON_CALL_UP][floor].second)
-            {
-                serviceFloor(BUTTON_CALL_UP, floor);
-            }
-            else
-            {
-                // if there were no calls at the current floor, check others in order of proximity
-                // then send the elevator to the appropriate floor
-                for (i = floor-1, j = floor+1; i >= 0 || j < N_FLOORS; i--, j++)
+                if (state.call[BUTTON_COMMAND][i].second)
                 {
-                    if (i >= 0)
-                    {
-                        if (state.call[BUTTON_CALL_DOWN][i].second || state.call[BUTTON_CALL_UP][i].second)
-                        {
-                            elevator->goToFloor(i);
-                            break;
-                        }
-                    }
-                    if (j < N_FLOORS)
-                    {
-                        if (state.call[BUTTON_CALL_DOWN][j].second || state.call[BUTTON_CALL_UP][j].second)
-                        {
-                            elevator->goToFloor(j);
-                            break;
-                        }
-                    }
+                    elevator->goToFloor(i);
+                    return;
+                }
+            }
+            if (j < N_FLOORS)
+            {
+                if (state.call[BUTTON_COMMAND][j].second)
+                {
+                    elevator->goToFloor(j);
+                    return;
+                }
+            }
+        }
+
+        for (i = floor-1, j = floor+1; i >= 0 || j < N_FLOORS; i--, j++)
+        {
+            if (i >= 0)
+            {
+                if (state.call[BUTTON_CALL_DOWN][i].second || state.call[BUTTON_CALL_UP][i].second)
+                {
+                    elevator->goToFloor(i);
+                    return;
+                }
+            }
+            if (j < N_FLOORS)
+            {
+                if (state.call[BUTTON_CALL_DOWN][j].second || state.call[BUTTON_CALL_UP][j].second)
+                {
+                    elevator->goToFloor(j);
+                    return;
                 }
             }
         }
     }
 }
 
+void Control::onIdleDelayTimer()
+{
+
+}
+
 bool Control::checkCallsAbove(int floor)
 {
+    if (state.call[BUTTON_CALL_UP][floor].second)
+    {
+        serviceFloor(BUTTON_CALL_UP, floor);
+        return true;
+    }
+
     // first check calls going up
     for (int i = floor+1; i < N_FLOORS; i++)
     {
@@ -250,6 +229,12 @@ bool Control::checkCallsAbove(int floor)
 
 bool Control::checkCallsBelow(int floor)
 {
+    if (state.call[BUTTON_CALL_DOWN][floor].second)
+    {
+        serviceFloor(BUTTON_CALL_DOWN, floor);
+        return true;
+    }
+
     // first check calls going down
     for (int i = floor-1; i >=0; i--)
     {
@@ -271,8 +256,6 @@ bool Control::checkCallsBelow(int floor)
 
     return false;
 }
-
-static const int SERVICE_TIME = 2000;
 
 void Control::serviceFloor(elev_button_type_t type, int floor)
 {
@@ -359,7 +342,10 @@ bool Control::shouldService(int floor)
 
 void Control::onFloorSensor(int floor)
 {
+    // Update our floor
     this->floor = floor;
+
+    // Check if the current floor should be serviced
     if (shouldService(floor))
     {
         elevator->stop();
@@ -381,11 +367,5 @@ void Control::onButtonSensor(elev_button_type_t type, int floor)
     state.call[type][floor].first = QDateTime::currentMSecsSinceEpoch();
     state.call[type][floor].second = true;
 
-    if (!service_timer->isActive() && !elevator->moving)
-    {
-        if (elevator->floor == floor)
-            serviceFloor(type, floor);
-        else
-            elevator->goToFloor(floor);
-    }
+    idleCheckCalls();
 }

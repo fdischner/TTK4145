@@ -6,6 +6,9 @@ extern "C" {
 #include "elev.h"
 }
 
+#define UP 1
+#define DOWN -1
+
 class Elevator : public QThread
 {
     Q_OBJECT

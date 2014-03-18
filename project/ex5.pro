@@ -19,7 +19,8 @@ SOURCES += main.cpp\
     elevator.cpp \
     control.cpp \
     networkmanager.cpp \
-    top.cpp
+    top.cpp \
+    state.cpp
 
 HEADERS  += channels.h \
     io.h \
@@ -27,6 +28,7 @@ HEADERS  += channels.h \
     elevator.h \
     control.h \
     networkmanager.h \
-    top.h
+    top.h \
+    state.h
 
 FORMS    +=

@@ -4,7 +4,8 @@
 #include <QNetworkInterface>
 #include <QtDebug>
 
-const qint32 MAGIC = 0x12345678;
+// for filtering out messages that don't belong to us
+const QByteArray MAGIC = "Chilin";
 
 NetworkManager::NetworkManager(QObject *parent) :
     QObject(parent), socket(0)
@@ -33,7 +34,7 @@ void NetworkManager::initSocket(QAbstractSocket::SocketType type, const QString&
 
 void NetworkManager::sendMessage(const QByteArray& message)
 {
-    QByteArray newMessage = message;
+    QByteArray newMessage = MAGIC + message;
 
     // TCP sockets are just a stream so we need a way to delimit messages
     // UDP encodes the message size in the datagram so this is not necessary
@@ -83,9 +84,9 @@ void NetworkManager::onReadyRead()
                 }
             }
 
-            // don't emit empty messages
-            if (!data.isEmpty())
-                emit messageReceived(data, sender);
+            // don't emit empty or unknown messages
+            if (data.size() > MAGIC.size()  && data.startsWith(MAGIC))
+                emit messageReceived(data.mid(MAGIC.size()), sender);
         }
     }
     else
@@ -114,9 +115,13 @@ void NetworkManager::onReadyRead()
                 if (pos == -1)
                     break;
 
-                // only emit message if size is greater than zero
-                if (pos != from)
+                // only emit message if size is greater than magic size
+                if (pos - from > MAGIC.size() && data.mid(from).startsWith(MAGIC))
+                {
+                    // skip magic
+                    from += MAGIC.size();
                     emit messageReceived(data.mid(from, pos - from), address);
+                }
 
                 // move to start of next message
                 from = pos + 1;

@@ -4,7 +4,7 @@
 static const int SPEED = 100;
 
 Elevator::Elevator(QObject *parent) :
-    QThread(parent), floor(-1), wanted(-1), direction(-1), moving(false)
+    QThread(parent), floor(-1), wanted(-1), direction(DOWN), moving(false)
 {
     // register elev_button_type_t so we can use it in signals/slots
 	qRegisterMetaType<elev_button_type_t>("elev_button_type_t");
@@ -15,9 +15,9 @@ Elevator::Elevator(QObject *parent) :
     // set the floor indicator light when the sensor is detected
     connect(this, SIGNAL(floorSensor(int)), this, SLOT(setFloorIndicator(int)));
 
-    // reset elevator to a known position
-    direction = -1;
+    // stop the elevator
     elev_set_speed(0);
+
     // don't set the floor variable here so that the signal is emitted from the thread
 }
 
