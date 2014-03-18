@@ -9,13 +9,8 @@
 
 
 Top::Top(const char *argv0, pid_t parent_pid, QObject *parent) :
-    QObject(parent), message_timer(0), path (argv0), parent_pid(parent_pid)
+    QObject(parent), local_network(0), message_timer(0), path (argv0), parent_pid(parent_pid)
 {
-    //Open a socket to listen for messages from the parent
-    local_network = new NetworkManager(this);
-    local_network->initSocket(QAbstractSocket::UdpSocket, "127.0.0.1", 44445);
-    connect(local_network, SIGNAL(messageReceived(QByteArray,QHostAddress)), this, SLOT(onMessageReceived(QByteArray,QHostAddress)));
-
     if (parent_pid == 0)
     {
         // if we have no parent, then start immediately
@@ -23,6 +18,11 @@ Top::Top(const char *argv0, pid_t parent_pid, QObject *parent) :
     }
     else
     {
+        //Open a socket to listen for messages from the parent
+        local_network = new NetworkManager(this);
+        local_network->initSocket(QAbstractSocket::UdpSocket, "127.0.0.1", 44445);
+        connect(local_network, SIGNAL(messageReceived(QByteArray,QHostAddress)), this, SLOT(onMessageReceived(QByteArray,QHostAddress)));
+
         //Create timer for message timeout
         message_timer = new QTimer(this);
         connect(message_timer, SIGNAL(timeout()), this, SLOT(onTakeOver()));
@@ -40,8 +40,8 @@ void Top::onMessageReceived(const QByteArray &message, const QHostAddress &sende
 
 void Top::onTakeOver() {
     // don't listen for messages anymore
-    disconnect(local_network, SIGNAL(messageReceived(QByteArray)), this, SLOT(onMessageReceived(QByteArray)));
-    delete local_network;
+    if (local_network != 0)
+        delete local_network;
     local_network = 0;
 
     // stop waiting for messages from the master
