@@ -21,7 +21,6 @@ private:
     bool checkCallsBelow(int floor);
     void serviceFloor(elev_button_type_t type, int floor);
     bool shouldService(int floor);
-    void idleCheckCalls(void);
 
 signals:
 
@@ -33,12 +32,12 @@ private slots:
     void onSendMessage();
     void onMessageReceived(const QByteArray &message, const QHostAddress &sender);
     void onServiceTimer();
-    void onIdleDelayTimer();
+    void idleCheckCalls();
 
 private:
     NetworkManager *local_network;
     NetworkManager *elevator_network;
-    QTimer *imAlive_timer, *service_timer, *idle_delay_timer;
+    QTimer *imAlive_timer, *service_timer;
     Elevator *elevator;
     elevator_state state;
     int service_timer_cnt;

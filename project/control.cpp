@@ -9,6 +9,7 @@
 #include <QtDebug>
 
 static const int SERVICE_TIME = 2000;
+static const int IDLE_DELAY_TIME = 500;
 
 Control::Control(const QByteArray &elev_state, QObject *parent) :
     QObject(parent), state()
@@ -53,10 +54,6 @@ Control::Control(const QByteArray &elev_state, QObject *parent) :
     //Start a timer to send servicing floor messages
     service_timer = new QTimer(this);
     connect(service_timer, SIGNAL(timeout()), this, SLOT(onServiceTimer()));
-
-    //Start a timer for servicing when elevator is idle
-    idle_delay_timer = new QTimer(this);
-    connect(idle_delay_timer, SIGNAL(timeout()), this, SLOT(onIdleDelayTimer()));
 }
 
 void Control::onSendMessage() {
@@ -120,7 +117,7 @@ void Control::onMessageReceived(const QByteArray &message, const QHostAddress &s
         }
 
         // if we're idle, then check for new calls to service
-        idleCheckCalls();
+        QTimer::singleShot(IDLE_DELAY_TIME, this, SLOT(idleCheckCalls()));
     }
 }
 
@@ -190,11 +187,6 @@ void Control::idleCheckCalls()
             }
         }
     }
-}
-
-void Control::onIdleDelayTimer()
-{
-
 }
 
 bool Control::checkCallsAbove(int floor)
@@ -367,5 +359,10 @@ void Control::onButtonSensor(elev_button_type_t type, int floor)
     state.call[type][floor].first = QDateTime::currentMSecsSinceEpoch();
     state.call[type][floor].second = true;
 
-    idleCheckCalls();
+    // if internal call, then check immediately
+    if (type == BUTTON_COMMAND)
+        idleCheckCalls();
+    // otherwise, wait short delay in case another elevator is idle at that floor
+    else
+        QTimer::singleShot(IDLE_DELAY_TIME, this, SLOT(idleCheckCalls()));
 }
