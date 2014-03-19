@@ -1,3 +1,6 @@
+// This class is executed as a thread to receive signals from
+// button pushes and floor sensors and control the elevator
+
 #ifndef ELEVATOR_H
 #define ELEVATOR_H
 

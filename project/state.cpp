@@ -1,3 +1,5 @@
+// This file contains the structures to hold the elevator's state
+
 #include "state.h"
 
 QByteArray elevator_state::serialize()
@@ -36,24 +38,6 @@ bool elevator_state::deserialize(const QByteArray &state)
     return (stream.status() == QDataStream::Ok);
 }
 
-#if 0
-QDataStream &operator<<(QDataStream & stream, const elev_button_type_t &type)
-{
-    stream << (quint8) type;
-
-    return stream;
-}
-
-QDataStream &operator>>(QDataStream & stream, elev_button_type_t &type)
-{
-    quint8 tmp;
-    stream >> tmp;
-    type = (elev_button_type_t) tmp;
-
-    return stream;
-}
-#endif
-
 QDataStream &operator<<(QDataStream & stream, const internal_state &state)
 {
     for (int i = 0; i < N_FLOORS; i++)
@@ -69,3 +53,19 @@ QDataStream &operator>>(QDataStream & stream, internal_state &state)
 
     return stream;
 }
+
+//QDataStream &operator<<(QDataStream & stream, const elev_button_type_t &type)
+//{
+//    stream << (quint8) type;
+
+//    return stream;
+//}
+
+//QDataStream &operator>>(QDataStream & stream, elev_button_type_t &type)
+//{
+//    quint8 tmp;
+//    stream >> tmp;
+//    type = (elev_button_type_t) tmp;
+
+//    return stream;
+//}

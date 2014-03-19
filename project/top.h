@@ -1,3 +1,5 @@
+// Top class includes the behavior of both the main and backup processes
+
 #ifndef TOP_H
 #define TOP_H
 
@@ -11,22 +13,23 @@ class Control;
 class Top : public QObject
 {
     Q_OBJECT
+
 public:
     explicit Top(const char *argv0, pid_t parent_pid, QObject *parent = 0);
-
-private:
-    NetworkManager *local_network;
-    QTimer *message_timer;
-    const char *path;
-    pid_t parent_pid;
-    Control *control;
-    QByteArray elev_state;
 
 signals:
 
 private slots:
     void onMessageReceived(const QByteArray &message, const QHostAddress &sender);
     void onTakeOver();
+
+private:
+    NetworkManager *local_network;
+    Control *control;
+    QTimer *message_timer;
+    QByteArray elev_state;
+    pid_t parent_pid;
+    const char *path;
 };
 
-#endif // TOP_H
+#endif

@@ -1,11 +1,13 @@
+// This class manages the control functionality of the elevator
+
 #ifndef CONTROL_H
 #define CONTROL_H
 
-#include <QObject>
 #include "elevator.h"
+#include "state.h"
+#include <QObject>
 #include <QDataStream>
 #include <QHostAddress>
-#include "state.h"
 
 class NetworkManager;
 class QTimer;
@@ -13,6 +15,7 @@ class QTimer;
 class Control : public QObject
 {
     Q_OBJECT
+
 public:
     explicit Control(const QByteArray &elev_state, QObject *parent = 0);
 
@@ -35,8 +38,7 @@ private slots:
     void idleCheckCalls();
 
 private:
-    NetworkManager *local_network;
-    NetworkManager *elevator_network;
+    NetworkManager *local_network, *elevator_network;
     QTimer *imAlive_timer, *service_timer;
     Elevator *elevator;
     elevator_state state;
@@ -44,4 +46,4 @@ private:
     int floor;
 };
 
-#endif // CONTROL_H
+#endif

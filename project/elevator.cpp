@@ -1,24 +1,26 @@
+// This class is executed as a thread to receive signals from
+// button pushes and floor sensors and control the elevator
+
 #include "elevator.h"
 #include <QMetaType>
 
+// Elevator's speed
 static const int SPEED = 100;
 
 Elevator::Elevator(QObject *parent) :
     QThread(parent), floor(-1), wanted(-1), direction(DOWN), moving(false)
 {
-    // register elev_button_type_t so we can use it in signals/slots
+    // Register elev_button_type_t so we can use it in signals/slots
 	qRegisterMetaType<elev_button_type_t>("elev_button_type_t");
 
-    // initialize the elevator driver
+    // Initialize the elevator driver
 	elev_init();
-
-    // set the floor indicator light when the sensor is detected
-    connect(this, SIGNAL(floorSensor(int)), this, SLOT(setFloorIndicator(int)));
-
-    // stop the elevator
     elev_set_speed(0);
 
-    // don't set the floor variable here so that the signal is emitted from the thread
+    // Set the floor indicator light when the sensor is detected
+    connect(this, SIGNAL(floorSensor(int)), this, SLOT(setFloorIndicator(int)));
+
+    // Don't set the floor variable here so that the signal is emitted from the thread
 }
 
 void Elevator::run() {
@@ -29,6 +31,7 @@ void Elevator::run() {
     bool prev_stop = false;
     bool prev_obs = false;
 
+    // If elevator is between floors, move until it reaches one
     if (elev_get_floor_sensor_signal() == -1)
     {
         moving = true;
@@ -38,7 +41,10 @@ void Elevator::run() {
     while (1) {
         int cur, up, down, tmp;
 
+        // Read the floor sensors
         cur = elev_get_floor_sensor_signal();
+
+        // when it gets to a new floor, emit a signal
         if (prev_floor != cur && cur != -1)
         {
             floor = cur;
@@ -46,20 +52,24 @@ void Elevator::run() {
         }
         prev_floor = cur;
 
+
+        // Read the button sensors
         cur = up = down = 0;
-        // read button sensors
+
 		for (int i = 0; i < N_FLOORS; i++)
 		{
-            // call up only for floors 0-2
+            // check calls up only for floors 0-2 and save them
 			if (i != N_FLOORS-1 && elev_get_button_signal(BUTTON_CALL_UP, i))
                 up |= (1 << i);
-            // call down only for floors 1-3
+            // check calls down only for floors 1-3 and save them
 			if (i != 0 && elev_get_button_signal(BUTTON_CALL_DOWN, i))
                 down |= (1 << i);
+            // check internal calls for every floor and save them
 			if (elev_get_button_signal(BUTTON_COMMAND, i))
                 cur |= (1 << i);
         }
 
+        // emit a signal for every button pressed
         tmp = cur & (cur ^ prev_int);
         for (int i = 0; i < N_FLOORS; i++)
         {
@@ -82,7 +92,8 @@ void Elevator::run() {
         prev_down = down;
         prev_up = up;
 
-        // read stop sensor
+
+        // Read the stop sensor
         if (elev_get_stop_signal()) {
             if (!prev_stop)
                 emit stopSensor();
@@ -93,7 +104,8 @@ void Elevator::run() {
             prev_stop = false;
         }
 
-        // read obstruction sensor
+
+        // Read the obstruction sensor
 		if (elev_get_obstruction_signal())
 		{
             if (!prev_obs)
@@ -109,35 +121,41 @@ void Elevator::run() {
 
 void Elevator::setFloorIndicator(int floor)
 {
+    // Set on the lamp of the current floor
     if (floor >= 0 && floor < N_FLOORS)
         elev_set_floor_indicator(floor);
 
+    // NOTE: do we need this here? I think this is part of goToFloor
     if (wanted != -1 && floor == wanted)
         stop();
 
-    // for safety
+    // NOTE: this as well
+    // For safety, stop the elevator in the first or last floor
     if (floor == 0 || floor == N_FLOORS-1)
         stop();
 }
 
 void Elevator::setButtonLamp(elev_button_type_t button, int floor, bool value)
 {
+    // Check if the button exists on the floor
     if (button == BUTTON_CALL_DOWN && floor == 0)
         return;
-
     if (button == BUTTON_CALL_UP && floor == N_FLOORS-1)
         return;
 
+    // Set on/off the lamp of the button pressed
     elev_set_button_lamp(button, floor, value ? 1 : 0);
 }
 
 void Elevator::setStopLamp(int value)
 {
+    // Set on/off the stop lamp
 	elev_set_stop_lamp(value);
 }
 
 void Elevator::setDoorOpenLamp(int value)
 {
+    // Set on/off the open door lamp
 	elev_set_door_open_lamp(value);
 }
 
@@ -145,10 +163,11 @@ void Elevator::goToFloor(int floor)
 {
     wanted = floor;
 
+    // Set the direction of the elevator
     if (wanted < this->floor)
-        direction = -1;
+        direction = DOWN;
     else if (wanted > this->floor)
-        direction = 1;
+        direction = UP;
     else if (elev_get_floor_sensor_signal() == -1)
         direction = -direction;
     else
@@ -157,12 +176,14 @@ void Elevator::goToFloor(int floor)
         return;
     }
 
+    // Start moving the elevator
     elev_set_speed(direction * SPEED);
     moving = true;
 }
 
 void Elevator::stop()
 {
+    // Stop the elevator
     elev_set_speed(0);
     moving = false;
 }

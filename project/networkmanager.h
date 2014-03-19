@@ -1,3 +1,6 @@
+// This class is used to create network connections and send
+// messages through UDP or TCP
+
 #ifndef NETWORKMANAGER_H
 #define NETWORKMANAGER_H
 
@@ -33,4 +36,4 @@ private:
     quint16 port;
 };
 
-#endif // NETWORKMANAGER_H
+#endif

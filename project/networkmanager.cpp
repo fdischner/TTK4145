@@ -1,10 +1,13 @@
+// This class is used to create network connections and send
+// messages through UDP or TCP
+
 #include "networkmanager.h"
 #include <QTcpSocket>
 #include <QUdpSocket>
 #include <QNetworkInterface>
 #include <QtDebug>
 
-// for filtering out messages that don't belong to us
+// For filtering out messages that don't belong to us
 const QByteArray MAGIC = "Chilin";
 
 NetworkManager::NetworkManager(QObject *parent) :
@@ -14,12 +17,15 @@ NetworkManager::NetworkManager(QObject *parent) :
 
 void NetworkManager::initSocket(QAbstractSocket::SocketType type, const QString& address, quint16 port)
 {
+    // If there is a previous socket, delete it
     if (socket != 0)
         delete socket;
     
+    // Set up the address and port
     this->address = QHostAddress(address);
     this->port = port;
 
+    // Set up the connection type
     if (type == QAbstractSocket::TcpSocket) {
         socket = new QTcpSocket(this);
         socket->connectToHost(address, port);
@@ -55,6 +61,7 @@ void NetworkManager::sendMessage(const QByteArray& message)
 
 void NetworkManager::onReadyRead()
 {
+    // UDP message received
     if (socket->socketType() == QAbstractSocket::UdpSocket)
     {
         QUdpSocket *udp = static_cast<QUdpSocket *>(socket);
@@ -89,6 +96,7 @@ void NetworkManager::onReadyRead()
                 emit messageReceived(data.mid(MAGIC.size()), sender);
         }
     }
+    // TCP message received
     else
     {
         while (socket->bytesAvailable() > 0)
