@@ -310,8 +310,6 @@ void Control::onServiceTimer() {
 
 bool Control::shouldService(int floor)
 {
-    int i;
-
     // Going up and there is a call up
     if (elevator->direction == UP && state.call[BUTTON_CALL_UP][floor].second)
         return true;

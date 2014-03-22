@@ -10,7 +10,7 @@
 #include <unistd.h>
 
 Top::Top(const char *argv0, pid_t parent_pid, QObject *parent) :
-    QObject(parent), local_network(0), message_timer(0), path (argv0), parent_pid(parent_pid)
+    QObject(parent), local_network(0), message_timer(0), parent_pid(parent_pid), path (argv0)
 {
     if (parent_pid == 0)
     {
@@ -32,6 +32,9 @@ Top::Top(const char *argv0, pid_t parent_pid, QObject *parent) :
 }
 
 void Top::onMessageReceived(const QByteArray &message, const QHostAddress &sender) {
+    // unused, suppress compiler warning
+    (void) sender;
+
     // Save the state from the parent process
     elev_state = message;
 
