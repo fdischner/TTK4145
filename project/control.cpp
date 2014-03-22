@@ -44,6 +44,7 @@ Control::Control(const QByteArray &elev_state, QObject *parent) :
         elevator->direction = state.direction;
     }
     // NOTE: don't we need a default initialization?
+    // No, c++ does that for us
 
 
     // Connect elevator signals to slots for handling requests and start running the elevator
@@ -74,8 +75,6 @@ void Control::onSendMessage() {
 }
 
 void Control::onMessageReceived(const QByteArray &message, const QHostAddress &sender) {
-    // NOTE: do we still need this stream?
-    QDataStream stream(message);
     elevator_state elev_state;
 
     if (elev_state.deserialize(message))
@@ -130,7 +129,6 @@ void Control::onMessageReceived(const QByteArray &message, const QHostAddress &s
                 break;
             }
         }
-
 
         // If we're idle, then check for new calls to service
         QTimer::singleShot(IDLE_DELAY_TIME, this, SLOT(idleCheckCalls()));
@@ -274,7 +272,7 @@ void Control::serviceFloor(elev_button_type_t type, int floor)
 {
     // Internal calls are always serviced
     elevator->setButtonLamp(BUTTON_COMMAND, floor, false);
-    state.call[BUTTON_COMMAND][floor].first = QDateTime::currentMSecsSinceEpoch(); //NOTE: should we add service time here too?
+    state.call[BUTTON_COMMAND][floor].first = QDateTime::currentMSecsSinceEpoch() + SERVICE_TIME;
     state.call[BUTTON_COMMAND][floor].second = false;
 
     // If there is an external call, service it too
@@ -342,25 +340,13 @@ bool Control::shouldService(int floor)
     if (state.call[BUTTON_COMMAND][floor].second)
         return true;
 
-    // NOTE: check if we can remove these next two conditions and do an else in the (i == N_FLOORS)
-    // returning false, so if there are no more requests stop and return false, but if there are some
-    // requests that are not at the current floor just return false
-
-    // If there are requests but not at the current floor, don't service
-    if (elevator->direction == DOWN && !checkCallsBelow(floor) && checkCallsAbove(floor))
-        return false;
-    if (elevator->direction == UP && !checkCallsAbove(floor) && checkCallsBelow(floor))
-        return false;
-
-    // In case there are no more requests, stop the elevator but don't service
-    for (i = 0; i < N_FLOORS; i++) {
-        if (state.call[0][i].second || state.call[1][i].second || state.call[2][i].second)
-            break;
-    }
-
-    if (i == N_FLOORS)
+    // If there are no more requests, stop the elevator
+    if (elevator->direction == DOWN && !checkCallsBelow(floor) && !checkCallsAbove(floor))
+        elevator->stop();
+    else if (elevator->direction == UP && !checkCallsAbove(floor) && !checkCallsBelow(floor))
         elevator->stop();
 
+    // default case is to not service
     return false;
 }
 
