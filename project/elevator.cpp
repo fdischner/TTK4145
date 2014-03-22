@@ -18,7 +18,7 @@ Elevator::Elevator(QObject *parent) :
     elev_set_speed(0);
 
     // Set the floor indicator light when the sensor is detected
-    connect(this, SIGNAL(floorSensor(int)), this, SLOT(setFloorIndicator(int)));
+    connect(this, SIGNAL(floorSensor(int)), this, SLOT(onFloorSensor(int)));
 
     // Don't set the floor variable here so that the signal is emitted from the thread
 }
@@ -119,18 +119,17 @@ void Elevator::run() {
     }
 }
 
-void Elevator::setFloorIndicator(int floor)
+void Elevator::onFloorSensor(int floor)
 {
     // Set on the lamp of the current floor
     if (floor >= 0 && floor < N_FLOORS)
         elev_set_floor_indicator(floor);
 
-    // NOTE: do we need this here? I think this is part of goToFloor
+    // stop elevator if this is the requested floor
     if (wanted != -1 && floor == wanted)
         stop();
 
-    // NOTE: this as well
-    // For safety, stop the elevator in the first or last floor
+    // For safety, always stop the elevator at the first or last floor
     if (floor == 0 || floor == N_FLOORS-1)
         stop();
 }
@@ -169,6 +168,8 @@ void Elevator::goToFloor(int floor)
     else if (wanted > this->floor)
         direction = UP;
     else if (elev_get_floor_sensor_signal() == -1)
+        // if last sensor was the requested floor, but we've
+        // already passed it, then reverse direction
         direction = -direction;
     else
     {

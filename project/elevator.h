@@ -29,12 +29,14 @@ signals:
     void obstructionSensor(void);
 	
 public slots:
-    void setFloorIndicator(int floor);
     void setButtonLamp(elev_button_type_t button, int floor, bool value);
     void setStopLamp(int value);
     void setDoorOpenLamp(int value);
     void goToFloor(int floor);
     void stop(void);
+
+private slots:
+    void onFloorSensor(int floor);
 	
 public:
     int floor, wanted;
