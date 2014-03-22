@@ -19,6 +19,7 @@ struct elevator_state {
   int direction;
   QMap<quint32, internal_state> remote;
   elev_button_type_t button_type;
+  int floor;
 
   bool deserialize(const QByteArray &state);
   QByteArray serialize();
@@ -26,8 +27,5 @@ struct elevator_state {
 
 QDataStream &operator<<(QDataStream & stream, const internal_state &state);
 QDataStream &operator>>(QDataStream & stream, internal_state &state);
-
-//QDataStream &operator<<(QDataStream & stream, const elev_button_type_t &type);
-//QDataStream &operator>>(QDataStream & stream, elev_button_type_t &type);
 
 #endif

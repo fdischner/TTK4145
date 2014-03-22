@@ -24,6 +24,7 @@ private:
     bool checkCallsBelow(int floor);
     void serviceFloor(elev_button_type_t type, int floor);
     bool shouldService(int floor);
+    bool checkCallsByProximity(elev_button_type_t button_type1, elev_button_type_t button_type2 = BUTTON_COMMAND);
 
 signals:
 
@@ -43,7 +44,6 @@ private:
     Elevator *elevator;
     elevator_state state;
     int service_timer_cnt;
-    int floor;
 };
 
 #endif

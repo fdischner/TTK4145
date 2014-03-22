@@ -8,7 +8,6 @@
 #include <QTimer>
 #include <QDateTime>
 #include <QNetworkInterface>
-#include <QtDebug>
 
 // Time for the door to be open when servicing a floor
 static const int SERVICE_TIME = 2000;
@@ -42,10 +41,8 @@ Control::Control(const QByteArray &elev_state, QObject *parent) :
         }
 
         elevator->direction = state.direction;
+        elevator->setFloorIndicator(state.floor);
     }
-    // NOTE: don't we need a default initialization?
-    // No, c++ does that for us
-
 
     // Connect elevator signals to slots for handling requests and start running the elevator
     connect(elevator, SIGNAL(floorSensor(int)), this, SLOT(onFloorSensor(int)));
@@ -141,67 +138,53 @@ void Control::idleCheckCalls()
     if (service_timer->isActive() || elevator->moving)
         return;
 
-    int i, j;
-
     // First, check for calls at the current floor and just service them
-    if (state.call[BUTTON_CALL_DOWN][floor].second)
+    if (state.call[BUTTON_CALL_DOWN][elevator->floor].second)
     {
-        serviceFloor(BUTTON_CALL_DOWN, floor);
+        serviceFloor(BUTTON_CALL_DOWN, elevator->floor);
     }
-    else if (state.call[BUTTON_CALL_UP][floor].second)
+    else if (state.call[BUTTON_CALL_UP][elevator->floor].second)
     {
-        serviceFloor(BUTTON_CALL_UP, floor);
+        serviceFloor(BUTTON_CALL_UP, elevator->floor);
     }
-    else if (state.call[BUTTON_COMMAND][floor].second)
+    else if (state.call[BUTTON_COMMAND][elevator->floor].second)
     {
-        serviceFloor(BUTTON_COMMAND, floor);
+        serviceFloor(BUTTON_COMMAND, elevator->floor);
     }
     else
     {
         // If there were no calls at the current floor, check others in order of proximity
         // then send the elevator to the appropriate floor
         // Note: internal calls have priority
-        // TODO: make this a function
-        for (i = floor-1, j = floor+1; i >= 0 || j < N_FLOORS; i--, j++)
+        if (!checkCallsByProximity(BUTTON_COMMAND))
+            checkCallsByProximity(BUTTON_CALL_UP, BUTTON_CALL_DOWN);
+    }
+}
+
+bool Control::checkCallsByProximity(elev_button_type_t button_type1, elev_button_type_t button_type2)
+{
+    int i, j;
+
+    for (i = elevator->floor-1, j = elevator->floor+1; i >= 0 || j < N_FLOORS; i--, j++)
+    {
+        if (i >= 0)
         {
-            if (i >= 0)
+            if (state.call[button_type1][i].second || state.call[button_type2][i].second)
             {
-                if (state.call[BUTTON_COMMAND][i].second)
-                {
-                    elevator->goToFloor(i);
-                    return;
-                }
-            }
-            if (j < N_FLOORS)
-            {
-                if (state.call[BUTTON_COMMAND][j].second)
-                {
-                    elevator->goToFloor(j);
-                    return;
-                }
+                elevator->goToFloor(i);
+                return true;
             }
         }
-
-        for (i = floor-1, j = floor+1; i >= 0 || j < N_FLOORS; i--, j++)
+        if (j < N_FLOORS)
         {
-            if (i >= 0)
+            if (state.call[button_type1][j].second || state.call[button_type2][j].second)
             {
-                if (state.call[BUTTON_CALL_DOWN][i].second || state.call[BUTTON_CALL_UP][i].second)
-                {
-                    elevator->goToFloor(i);
-                    return;
-                }
-            }
-            if (j < N_FLOORS)
-            {
-                if (state.call[BUTTON_CALL_DOWN][j].second || state.call[BUTTON_CALL_UP][j].second)
-                {
-                    elevator->goToFloor(j);
-                    return;
-                }
+                elevator->goToFloor(j);
+                return true;
             }
         }
     }
+    return false;
 }
 
 bool Control::checkCallsAbove(int floor)
@@ -298,13 +281,13 @@ void Control::onServiceTimer() {
     // After servicing the floor, check if there are any other calls
     if (elevator->direction == UP)
     {
-        if (!checkCallsAbove(floor))
-            checkCallsBelow(floor);
+        if (!checkCallsAbove(elevator->floor))
+            checkCallsBelow(elevator->floor);
     }
     else
     {
-        if (!checkCallsBelow(floor))
-            checkCallsAbove(floor);
+        if (!checkCallsBelow(elevator->floor))
+            checkCallsAbove(elevator->floor);
     }
 }
 
@@ -351,7 +334,7 @@ bool Control::shouldService(int floor)
 void Control::onFloorSensor(int floor)
 {
     // Update our floor
-    this->floor = floor;
+    state.floor = floor;
 
     // Check if the current floor should be serviced
     if (shouldService(floor))
@@ -369,7 +352,7 @@ void Control::onFloorSensor(int floor)
 void Control::onButtonSensor(elev_button_type_t type, int floor)
 {
     // Ignore the request we're currently servicing
-    if (service_timer->isActive() && floor == this->floor && type == state.button_type)
+    if (service_timer->isActive() && floor == elevator->floor && type == state.button_type)
         return;
 
     // Set the lamp of the button pressed and save the request in the state

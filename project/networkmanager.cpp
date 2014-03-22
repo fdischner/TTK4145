@@ -31,7 +31,8 @@ void NetworkManager::initSocket(QAbstractSocket::SocketType type, const QString&
         socket->connectToHost(address, port);
     } else {
         QUdpSocket *udp = new QUdpSocket(this);
-        udp->bind(QHostAddress(address), port, QUdpSocket::ShareAddress|QUdpSocket::ReuseAddressHint);
+        if (!udp->bind(this->address, port, QUdpSocket::ShareAddress|QUdpSocket::ReuseAddressHint))
+            qDebug() << "error socket";
         socket = udp;
     }
 

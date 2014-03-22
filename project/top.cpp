@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <QtDebug>
 
 Top::Top(const char *argv0, pid_t parent_pid, QObject *parent) :
     QObject(parent), local_network(0), message_timer(0), parent_pid(parent_pid), path (argv0)
@@ -27,7 +28,7 @@ Top::Top(const char *argv0, pid_t parent_pid, QObject *parent) :
         // Start a timer for message timeout and set it to 1 second
         message_timer = new QTimer(this);
         connect(message_timer, SIGNAL(timeout()), this, SLOT(onTakeOver()));
-        message_timer->start(1000);
+        message_timer->start(500);
     }
 }
 

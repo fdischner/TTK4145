@@ -14,6 +14,7 @@ QByteArray elevator_state::serialize()
     }
     stream << direction;
     stream << remote;
+    stream << floor;
 
     return elev_state;
 }
@@ -34,6 +35,7 @@ bool elevator_state::deserialize(const QByteArray &state)
 
     stream >> direction;
     stream >> remote;
+    stream >> floor;
 
     return (stream.status() == QDataStream::Ok);
 }
@@ -53,19 +55,3 @@ QDataStream &operator>>(QDataStream & stream, internal_state &state)
 
     return stream;
 }
-
-//QDataStream &operator<<(QDataStream & stream, const elev_button_type_t &type)
-//{
-//    stream << (quint8) type;
-
-//    return stream;
-//}
-
-//QDataStream &operator>>(QDataStream & stream, elev_button_type_t &type)
-//{
-//    quint8 tmp;
-//    stream >> tmp;
-//    type = (elev_button_type_t) tmp;
-
-//    return stream;
-//}

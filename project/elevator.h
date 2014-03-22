@@ -32,6 +32,7 @@ public slots:
     void setButtonLamp(elev_button_type_t button, int floor, bool value);
     void setStopLamp(int value);
     void setDoorOpenLamp(int value);
+    void setFloorIndicator(int floor);
     void goToFloor(int floor);
     void stop(void);
 

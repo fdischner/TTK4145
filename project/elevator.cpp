@@ -119,11 +119,16 @@ void Elevator::run() {
     }
 }
 
+void Elevator::setFloorIndicator(int floor)
+{
+    if (floor >= 0 && floor < N_FLOORS)
+        elev_set_floor_indicator(floor);
+}
+
 void Elevator::onFloorSensor(int floor)
 {
     // Set on the lamp of the current floor
-    if (floor >= 0 && floor < N_FLOORS)
-        elev_set_floor_indicator(floor);
+    setFloorIndicator(floor);
 
     // stop elevator if this is the requested floor
     if (wanted != -1 && floor == wanted)
