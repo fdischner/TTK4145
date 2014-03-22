@@ -8,7 +8,7 @@ QT       += core network
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-TARGET = ex5
+TARGET = elevator
 TEMPLATE = app
 QMAKE_CFLAGS += -std=c99
 LIBS += -lcomedi -lm
